@@ -2,8 +2,9 @@
 <h1> <img src="assets/physbench.png" width="40" /> PhysBench </h1>
 </div>
 <h5 align="center">
-    <a href="https://physbench.github.io/">🌐 Homepage</a> | <a href="todo">🤗 Dataset</a> | <a href="todo">📑 Paper</a> | <a href="https://github.com/USC-GVL/PhysBench/eval/README.md">💻 Code</a> | <a href="https://eval.ai/web/challenges/challenge-page/2287/overview">🔗 EvalAI</a>
+    <a href="https://physbench.github.io/">🌐 Homepage</a> | <a href="https://huggingface.co/datasets/USC-GVL/PhysBench">🤗 Dataset</a> | <a href="todo">📑 Paper</a> | <a href="https://github.com/USC-GVL/PhysBench/tree/main/eval">💻 Code</a> | <a href="https://eval.ai/web/challenges/challenge-page/2379/overview">🔺 EvalAI</a>
 </h5>
+
 This repo contains evaluation code for the paper "[PhysBench: Benchmarking and Enhancing VLMs for Physical World Understanding](todo)"
 If you like our project, please give us a star ⭐ on GitHub for latest update.
 

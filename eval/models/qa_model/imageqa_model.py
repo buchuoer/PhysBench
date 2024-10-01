@@ -1,0 +1,1335 @@
+# refer to https://github.com/JieyuZ2/TaskMeAnything/blob/main/tma/models/qa_model/imageqa_model.py
+import base64
+import tempfile
+import time
+from typing import Callable, Union
+import openai
+import torch
+import random
+import os
+from PIL import Image
+from torch.nn.parallel import DataParallel
+from .base_qa_model import QAModel, QAModelInstance
+from termcolor import cprint
+from io import BytesIO
+from eval.eval_utils.task_evaluator import test_frame
+import cv2
+
+imageqa_models = {
+    "instructblip-flan-t5-xl"              : ("InstructBlip", "./eval/models/checkpoints/instructblip-flan-t5-xl"),
+    "instructblip-flan-t5-xxl"             : ("InstructBlip", "./eval/models/checkpoints/instructblip-flan-t5-xxl"),
+    "instructblip-vicuna-7b"               : ("InstructBlip", "./eval/models/checkpoints/instructblip-vicuna-7b"),
+    "instructblip-vicuna-13b"              : ("InstructBlip", "./eval/models/checkpoints/instructblip-vicuna-13b"),
+    "blip2-flant5xxl"                      : ("BLIP2", "Salesforce/blip2-flan-t5-xxl"),
+    "llava-1.5-7b-hf"                      : ("LLaVA", "./eval/models/checkpoints/llava-1.5-7b-hf"),
+    "llava-1.5-13b-hf"                     : ("LLaVA", "./eval/models/checkpoints/llava-1.5-13b-hf"),
+    "llava-v1.6-mistral-7b-hf"             : ("LLaVA", "./eval/models/checkpoints/llava-v1.6-mistral-7b-hf"),
+    "llava-v1.6-vicuna-7b-hf"              : ("LLaVA", "./eval/models/checkpoints/llava-v1.6-vicuna-7b-hf"),
+    "Phi-3-vision-128k-instruct"           : ("Phi", "./eval/models/checkpoints/Phi-3-vision-128k-instruct"),
+    "Qwen-VL-Chat"                         : ("QwenVLChat", "./eval/models/checkpoints/Qwen-VL-Chat"),
+    "InternVL-Chat-V1-5-quantable"         : ("InternVLChat", './eval/models/checkpoints/InternVL-Chat-V1-5-quantable'),
+    "llava-interleave-qwen-7b-hf"          : ("LLaVAInterleave", "./eval/models/checkpoints/llava-interleave-qwen-7b-hf"),
+    "llava-interleave-qwen-7b-dpo-hf"      : ("LLaVAInterleave", "./eval/models/checkpoints/llava-interleave-qwen-7b-dpo-hf"),
+    "vila-1.5-3b"                          : ("VILAModel", "./eval/models/checkpoints/vila-1.5-3b"),
+    "vila-1.5-3b-s2"                       : ("VILAModel", "./eval/models/checkpoints/vila-1.5-3b-s2"),
+    "vila-1.5-8b"                          : ("VILAModel", "./eval/models/checkpoints/vila-1.5-8b"),
+    "vila-1.5-13b"                         : ("VILAModel", "./eval/models/checkpoints/vila-1.5-13b"),
+    "cambrian-8b"                          : ("Cambrian", "./eval/models/checkpoints/cambrian-8b"),
+    "LLaVA-NeXT-Video-7B-DPO-hf"           : ("LLaVAVideo", "./eval/models/checkpoints/LLaVA-NeXT-Video-7B-DPO-hf"),
+    "LLaVA-NeXT-Video-7B-hf"               : ("LLaVAVideo", "./eval/models/checkpoints/LLaVA-NeXT-Video-7B-hf"),
+    "Mantis-8B-Idefics2"                   : ("Mantis", "./eval/models/checkpoints/Mantis-8B-Idefics2"),
+    "Mantis-llava-7b"                      : ("Mantis", "./eval/models/checkpoints/Mantis-llava-7b"),
+    "Mantis-8B-siglip-llama3"              : ("Mantis", "./eval/models/checkpoints/Mantis-8B-siglip-llama3"),
+    "Mantis-8B-clip-llama3"                : ("Mantis", "./eval/models/checkpoints/Mantis-8B-clip-llama3"),
+    "gpt4v"                                : ("GPT4V", "<Your GPT Key>"),
+    "gpt4o"                                : ("GPT4O", "<Your GPT Key>"),
+    "gpt4o-mini"                           : ("GPT4Omini", "<Your GPT Key>"),
+    "o1-mini"                              : ("O1mini", "<Your GPT Key>"),
+    "gemini-1.5-flash"                     : ("GeminiFlash", "<Your Gemini Key>"), 
+    "gemini-1.5-pro"                       : ("GeminiPro", "<Your Gemini Key>"),
+    "claude-3-5-sonnet"                    : ("Claude_sonnetx", "<Your Claude Key>"),
+    "claude-3-sonnet"                      : ("Claude_sonnet", "<Your Claude Key>"),
+    "claude-3-opus"                        : ("Claude_opus", "<Your Claude Key>"),
+    "claude-3-haiku"                       : ("Claude_haiku", "<Your Claude Key>"),
+}
+
+
+# Refer to https://github.com/NVlabs/VILA
+def get_frame_from_vcap(vidcap, num_frames=10, fps=None, frame_count=None):
+    import cv2
+    from PIL import Image
+    import numpy as np
+
+    if fps is None or frame_count is None:
+        # Recompute fps and frame_count if not provided
+        fps = vidcap.get(cv2.CAP_PROP_FPS)
+        frame_count = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
+    if fps == 0 or frame_count == 0:
+        print("Video file not found or has no frames. Returning empty images.")
+        return [Image.new("RGB", (720, 720))] * num_frames
+
+    duration = frame_count / fps
+    frame_interval = frame_count // num_frames
+
+    if frame_interval == 0 and frame_count <= 1:
+        print("Frame interval is equal to 0. Returning empty image.")
+        return [Image.new("RGB", (720, 720))] * num_frames
+
+    images = []
+    count = 0
+    success = True
+    frame_indices = np.linspace(0, min(frame_count, num_frames) - 1, min(frame_count, num_frames), dtype=int)
+
+    while success:
+        success, frame = vidcap.read()
+        if success and count in frame_indices:
+            img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            im_pil = Image.fromarray(img)
+            images.append(im_pil)
+            if len(images) >= min(frame_count, num_frames):
+                return images
+        count += 1
+
+    if len(images) < num_frames:
+        width, height = images[0].size if images else (720, 720)
+        padding_frames = [Image.new("RGB", (width, height))] * (num_frames - len(images))
+        images.extend(padding_frames)
+        print(f"Video has fewer frames than requested. Padding with empty frames: {len(padding_frames)}")
+
+    return images
+
+
+
+def opencv_extract_frames_o(vpath_or_bytesio, frames=6, fps=None, frame_count=None):
+    """
+    Extract frames from a video using OpenCV.
+
+    Args:
+        vpath_or_bytesio (str or BytesIO): Path to the video file or BytesIO object containing the video.
+        frames (int): Number of frames to extract from the video.
+
+    Returns:
+        list: List of PIL Images extracted from the video.
+
+    Raises:
+        NotImplementedError: If the type of `vpath_or_bytesio` is not supported.
+    """
+    import cv2
+
+    if isinstance(vpath_or_bytesio, str):
+        vidcap = cv2.VideoCapture(vpath_or_bytesio)
+        return get_frame_from_vcap(vidcap, frames, fps=fps, frame_count=frame_count)
+    elif isinstance(vpath_or_bytesio, (BytesIO,)):
+        # assuming mp4
+        with tempfile.NamedTemporaryFile(delete=True, suffix=".mp4") as temp_video:
+            temp_video.write(vpath_or_bytesio.read())
+            temp_video_name = temp_video.name
+            vidcap = cv2.VideoCapture(temp_video_name)
+            return get_frame_from_vcap(vidcap, frames, fps=fps, frame_count=frame_count)
+    else:
+        raise NotImplementedError(type(vpath_or_bytesio))
+
+def set_imageqa_model_key(model_name, key):
+	imageqa_models[model_name] = (imageqa_models[model_name][0], key)
+
+
+def list_imageqa_models():
+	return list(imageqa_models.keys())
+
+
+def image_to_base64(pil_image):
+	import io
+	import base64
+	img_byte_arr = io.BytesIO()
+	pil_image.save(img_byte_arr, format='PNG')
+	img_byte_arr = img_byte_arr.getvalue()
+	base64_str = base64.b64encode(img_byte_arr).decode('utf-8')
+	return base64_str
+
+
+class ImageQAModel(QAModel):
+	def __init__(
+			self,
+			model_name: str,
+			prompt_name: str = None,
+			prompt_func: Callable = None,
+			model: QAModelInstance = None,
+			torch_device: Union[int, str] = -1,
+			precision=torch.bfloat16,
+			choice_format='letter',
+			enable_choice_search: bool = False,
+			cache_path: str = None,
+
+	):
+		super().__init__(model_name, prompt_name, prompt_func, choice_format, enable_choice_search, cache_path)
+
+		if isinstance(torch_device, str):
+			torch_device = torch.device(torch_device)
+		else:
+			if torch_device == -1:
+				torch_device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
+			else:
+				torch_device = torch.device(f"cuda:{torch_device}")
+
+		if model is None:
+			print(f"Loading {model_name}...")
+			class_name, ckpt = imageqa_models[model_name]
+			self.model_precision = precision
+			self.model = eval(class_name)(ckpt, torch_device, self.model_precision)
+			print(f"Finish loading {model_name}")
+		else:
+			print(f"Using provided model...")
+			self.model = model
+
+	def _data_to_str(self, data):
+		if isinstance(data, str):
+			return data
+		else:
+			return image_to_base64(data)
+
+
+class BLIP2(QAModelInstance):
+	def __init__(self, ckpt="Salesforce/blip2-flan-t5-xxl", torch_device=torch.device("cuda"), model_precision=torch.float32):
+		from transformers import Blip2Processor, Blip2ForConditionalGeneration
+		self.processor = Blip2Processor.from_pretrained(ckpt, device_map=torch_device)
+		self.model = Blip2ForConditionalGeneration.from_pretrained(
+			ckpt,
+			device_map=torch_device,
+			torch_dtype=model_precision,
+			low_cpu_mem_usage=True,
+		).eval()
+
+	def qa(self, image, prompt):
+		if isinstance(image, str):
+			image = Image.open(image).convert('RGB')
+		inputs = self.processor(image, prompt, return_tensors="pt").to(self.model.device)
+		out = self.model.generate(**inputs, max_new_tokens=200)
+		answer = self.processor.decode(out[0], skip_special_tokens=True)
+		return answer
+
+
+class InstructBlip(QAModelInstance):
+	def __init__(self, ckpt="Salesforce/instructblip-flan-t5-xxl", torch_device=torch.device("cuda"), model_precision=torch.float32):
+		from transformers import InstructBlipProcessor, InstructBlipForConditionalGeneration, InstructBlipConfig, AutoModelForVision2Seq
+		from accelerate import infer_auto_device_map, init_empty_weights
+		if ckpt == "Salesforce/instructblip-vicuna-13b":
+			# Load the model configuration.
+			config = InstructBlipConfig.from_pretrained(ckpt)
+			# Initialize the model with the given configuration.
+			with init_empty_weights():
+				model = AutoModelForVision2Seq.from_config(config)
+				model.tie_weights()
+			# Infer device map based on the available resources.
+			device_map = infer_auto_device_map(model, max_memory={0: "40GiB", 1: "40GiB"},
+											no_split_module_classes=['InstructBlipEncoderLayer', 'InstructBlipQFormerLayer', 'LlamaDecoderLayer'])
+			device_map['language_model.lm_head'] = device_map['language_projection'] = device_map[('language_model.model.embed_tokens')]
+		else:
+			device_map = torch_device
+		self.processor = InstructBlipProcessor.from_pretrained(ckpt, device_map="auto")
+		self.model = InstructBlipForConditionalGeneration.from_pretrained(
+			ckpt,
+			device_map=device_map,
+			torch_dtype=model_precision,
+			low_cpu_mem_usage=True,
+		).eval()
+
+	def qa(self, image, prompt):
+		if isinstance(image, str):
+			image = Image.open(image).convert('RGB')
+		inputs = self.processor(image, prompt, return_tensors="pt").to(self.model.device)
+
+		out = self.model.generate(**inputs, max_new_tokens=200)
+		answer = self.processor.decode(out[0], skip_special_tokens=True)
+		cprint(answer, 'cyan')
+		return answer
+
+
+class LLaVA(QAModelInstance):
+	def __init__(self, ckpt="llava-hf/llava-1.5-7b-hf", torch_device=torch.device("cuda"), model_precision=torch.float32):
+		if ckpt == "llava-hf/llava-v1.6-34b-hf":  # run model on multi gpus
+			from transformers import LlavaNextForConditionalGeneration, LlavaNextProcessor
+			model = LlavaNextForConditionalGeneration.from_pretrained(ckpt,
+																	torch_dtype=torch.float16,
+																	low_cpu_mem_usage=True,
+																	load_in_4bit=True,
+																	# use_flash_attention_2=True,
+																	).to(torch_device).eval()
+			self.model = DataParallel(model)
+			self.processor = LlavaNextProcessor.from_pretrained(ckpt)
+		elif 'llava-v1.6-mistral-7b-hf' in ckpt or 'llama3-llava-next-8b-hf' in ckpt or \
+				'llava-v1.6-vicuna-7b-hf' in ckpt:
+			from transformers import LlavaNextProcessor, LlavaNextForConditionalGeneration
+			self.model = LlavaNextForConditionalGeneration.from_pretrained(
+				ckpt,
+				torch_dtype=model_precision,
+				low_cpu_mem_usage=True,
+			).to(torch_device).eval()
+			self.processor = LlavaNextProcessor.from_pretrained(ckpt)
+		else:
+			from transformers import AutoProcessor, LlavaForConditionalGeneration
+			self.model = LlavaForConditionalGeneration.from_pretrained(
+				ckpt,
+				torch_dtype=model_precision,
+				low_cpu_mem_usage=True,
+			).to(torch_device).eval()
+			self.processor = AutoProcessor.from_pretrained(ckpt)
+
+	def qa(self, image, prompt):
+		if isinstance(image, str):
+			image = Image.open(image).convert('RGB')
+
+		prompt = "USER:" + prompt + "\nASSISTANT:"
+		print(prompt)
+		if isinstance(self.model, torch.nn.DataParallel):
+			inputs = self.processor(prompt, image, return_tensors='pt').to(next(self.model.parameters()).device)
+			out = self.model.module.generate(**inputs, max_new_tokens=200, do_sample=False)
+		else:
+			inputs = self.processor(prompt, image, return_tensors='pt').to(self.model.device)
+			out = self.model.generate(**inputs, max_new_tokens=200, do_sample=False)
+		answer = self.processor.decode(out[0], skip_special_tokens=True).split("ASSISTANT:")[-1].strip()
+		cprint(answer, 'cyan')
+		return answer
+
+import av
+import numpy as np
+
+class LLaVAVideo(QAModelInstance):
+	def __init__(self, ckpt="llava-hf/LLaVA-NeXT-Video-7B-hf", torch_device=torch.device("cuda"), model_precision=torch.float32):
+		from transformers import LlavaNextVideoProcessor, LlavaNextVideoForConditionalGeneration
+		model_precision = torch.float16  # only support this
+		self.model = LlavaNextVideoForConditionalGeneration.from_pretrained(
+			ckpt,
+			torch_dtype=model_precision,
+			low_cpu_mem_usage=True
+		).to(torch_device).eval()
+		self.model_precision = model_precision
+		self.processor = LlavaNextVideoProcessor.from_pretrained(ckpt, use_fast=False)  # for bug: https://github.com/huggingface/transformers/issues/31713
+		self.num_frames = test_frame
+	def _read_video_pyav(self, container, indices):
+		'''
+		Decode the video with PyAV decoder.
+		Args:
+			container (`av.container.input.InputContainer`): PyAV container.
+			indices (`List[int]`): List of frame indices to decode.
+		Returns:
+			result (np.ndarray): np array of decoded frames of shape (num_frames, height, width, 3).
+		'''
+		frames = []
+		container.seek(0)
+		start_index = indices[0]
+		end_index = indices[-1]
+		for i, frame in enumerate(container.decode(video=0)):
+			if i > end_index:
+				break
+			if i >= start_index and i in indices:
+				frames.append(frame)
+		return np.stack([x.to_ndarray(format="rgb24") for x in frames])
+	def qa(self, image, prompt, mode):
+		clip = None
+		imgs = None
+		prompt = "USER:" + prompt + "\nASSISTANT:"
+		for it in image:
+			if it.endswith(".mp4"):
+				container = av.open(it)
+				total_frames = container.streams.video[0].frames
+				indices = np.arange(0, total_frames, total_frames / self.num_frames).astype(int)
+				clip = self._read_video_pyav(container, indices)
+			else:
+				if imgs==None:
+					imgs = [Image.open(it).convert("RGB")]
+				else:
+					imgs.append(Image.open(it).convert("RGB"))
+
+		inputs = self.processor(text=prompt, videos=clip, images=imgs, padding=True, return_tensors="pt").to(self.model.device, self.model_precision)
+
+		# Generate
+		try:
+			generate_ids = self.model.generate(**inputs, max_new_tokens=10)
+			out = self.processor.batch_decode(generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0].split("ASSISTANT:")[-1].strip()
+			cprint(out, 'cyan')
+		except:
+			return None
+
+		del inputs
+		return out
+
+class LLaVAInterleave(QAModelInstance):
+	def __init__(self, ckpt="llava-hf/llava-interleave-qwen-7b-hf", torch_device=torch.device("cuda"), model_precision=torch.float32):
+		from transformers import AutoProcessor, LlavaForConditionalGeneration
+		self.model = LlavaForConditionalGeneration.from_pretrained(
+			ckpt,
+			torch_dtype=model_precision,
+			low_cpu_mem_usage=True,
+		).to(torch_device).eval()
+		self.processor = AutoProcessor.from_pretrained(ckpt)
+		self.model_precision = model_precision
+		self.num_frames = test_frame
+	def qa(self, image, prompt, mode):
+		if mode == 'image-only':
+			image_pil = Image.open(image[0]).convert('RGB')
+			prompt = "USER:" + prompt + "\nASSISTANT:"
+			inputs = self.processor(prompt, image_pil, return_tensors='pt').to(self.model.device, self.model_precision)
+		elif mode == 'image&video':
+			video_frames = opencv_extract_frames_o(image[0], frames=self.num_frames)
+			prompt = "USER:" + prompt.replace("<video>", "<image>" * len(video_frames)) + "\nASSISTANT:"
+			inputs = self.processor(prompt, video_frames, return_tensors='pt').to(self.model.device, self.model_precision)
+		else:  # general
+			image_list = []
+			video_token_num = 0
+			for it in image:
+				if it.endswith(".mp4"):
+					ori = len(image_list)
+					image_list+=opencv_extract_frames_o(it, frames=self.num_frames)
+					video_token_num = len(image_list) - ori
+				else:
+					image_list.append(Image.open(it).convert('RGB'))
+			prompt = "USER:" + prompt.replace("<video>", "<image>" * video_token_num) + "\nASSISTANT:"
+			inputs = self.processor(prompt, image_list, return_tensors='pt').to(self.model.device, self.model_precision)
+		print(prompt)
+		output = self.model.generate(**inputs, max_new_tokens=10, do_sample=False)
+		response = self.processor.decode(output[0][2:], skip_special_tokens=True).split("ASSISTANT:")[-1].strip()
+		cprint(response, 'cyan')
+		return response
+
+
+class VILAModel(QAModelInstance):
+	def __init__(self, ckpt, torch_device=torch.device("cuda"), model_precision=torch.float16, num_video_frames=8):
+		from data_inspiration.llava.mm_utils import get_model_name_from_path
+		from data_inspiration.llava.model.builder import load_pretrained_model
+		from data_inspiration.llava.utils import disable_torch_init
+
+		# VILA often use model_precision == torch.float16
+		disable_torch_init()
+		self.tokenizer, self.model, self.image_processor, self.context_len = \
+			load_pretrained_model(ckpt, get_model_name_from_path(ckpt), None)
+		self.model_precision = torch.float16 # vila only support this
+		self.num_video_frames = test_frame
+
+	def qa(self, image, prompt, mode):
+		from data_inspiration.llava.constants import IMAGE_TOKEN_INDEX
+		from data_inspiration.llava.conversation import SeparatorStyle, conv_templates
+		from data_inspiration.llava.mm_utils import (KeywordsStoppingCriteria, process_images, tokenizer_image_token)
+
+		images_pil = []
+		for v in image:
+			if v.endswith(".mp4"):
+				images_pil += opencv_extract_frames_o(v, self.num_video_frames)
+			else:
+				images_pil.append(load_image_o(v))
+
+		conv = conv_templates['vicuna_v1'].copy()
+		# conv.system = ''
+		conv.append_message(conv.roles[0], prompt)
+		conv.append_message(conv.roles[1], None)
+		input = conv.get_prompt()
+		print(input)
+		images_tensor = process_images(images_pil, self.image_processor, self.model.config).to(self.model.device, dtype=torch.float16)
+		input_ids = tokenizer_image_token(input, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(0).cuda()
+
+		stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
+		keywords = [stop_str]
+		stopping_criteria = KeywordsStoppingCriteria(keywords, self.tokenizer, input_ids)
+		with torch.inference_mode():
+			output_ids = self.model.generate(
+				input_ids,
+				images=[images_tensor],
+				do_sample=False,  # t>0, need True
+				temperature=0.1,
+				top_p=None,
+				num_beams=1,
+				max_new_tokens=4000,
+				use_cache=False,
+				# stopping_criteria=[stopping_criteria],
+			)
+
+		outputs = self.tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0]
+		outputs = outputs.strip()
+		if outputs.endswith(stop_str):
+			outputs = outputs[: -len(stop_str)]
+		outputs = outputs.strip()
+		cprint(outputs,'cyan')
+		return outputs
+
+class Mantis(QAModelInstance):
+	def __init__(self, ckpt, torch_device=torch.device("cuda"), model_precision=torch.float16, num_video_frames=8):
+		self.num_frames = test_frame
+		if 'Idefics2' in ckpt:
+			from transformers import AutoProcessor, AutoModelForVision2Seq
+			self.processor = AutoProcessor.from_pretrained(ckpt)
+			self.model = AutoModelForVision2Seq.from_pretrained(ckpt,torch_dtype=torch.bfloat16).to(torch_device)
+			self.num_frames = self.num_frames - 2 # for GPU mem
+		elif 'llava-7b' in ckpt or 'llama3' in ckpt:
+			from mantis.models.mllava import MLlavaProcessor, LlavaForConditionalGeneration
+			self.processor = MLlavaProcessor.from_pretrained(ckpt)
+			self.model = LlavaForConditionalGeneration.from_pretrained(ckpt, device_map="auto",torch_dtype=torch.bfloat16,
+																	attn_implementation="flash_attention_2")
+		elif 'Fuyu' in ckpt:
+			from mantis.models.mfuyu import MFuyuForCausalLM, MFuyuProcessor
+			self.processor = MFuyuProcessor.from_pretrained(ckpt)
+			self.model = MFuyuForCausalLM.from_pretrained(ckpt, device_map="cuda",
+													torch_dtype=torch.bfloat16,
+													attn_implementation="flash_attention_2")
+		else:
+			raise ValueError(f'Not support {ckpt}')
+		self.ckpt = ckpt
+
+	def qa(self, image, prompt, mode):
+		from mantis.models.mllava import chat_mllava
+		if mode == 'image-only':
+			image_pil = [Image.open(image[0]).convert('RGB')]
+			if 'Idefics2' in self.ckpt:
+				prompt = "User:" + prompt + "\nAssistant:"
+				inputs = self.processor(text=prompt, images=image_pil, return_tensors='pt').to(self.model.device)
+			elif 'llava-7b' in self.ckpt or 'Fuyu' in self.ckpt or 'llama3' in self.ckpt:
+				prompt = prompt
+				images = image_pil
+		elif mode == 'image&video':
+			video_frames = opencv_extract_frames_o(image[0], frames=self.num_frames)
+			if 'Idefics2' in self.ckpt:
+				prompt = "User:" + prompt.replace("<video>", "<image>" * len(video_frames)) + "\nAssistant:"
+				inputs = self.processor(text=prompt, images=video_frames, return_tensors='pt').to(self.model.device)
+			elif 'llava-7b' in self.ckpt or 'Fuyu' in self.ckpt or 'llama3' in self.ckpt:
+				prompt = prompt.replace("<video>", "<image>" * len(video_frames))
+				images = video_frames
+		else:  # general
+			image_list = []
+			video_token_num = 0
+			for it in image:
+				if it.endswith(".mp4"):
+					ori = len(image_list)
+					image_list+=opencv_extract_frames_o(it, frames=self.num_frames)
+					video_token_num = len(image_list) - ori
+				else:
+					image_list.append(Image.open(it).convert('RGB'))
+			if 'Idefics2' in self.ckpt:
+				prompt = "User:" + prompt.replace("<video>", "<image>" * video_token_num) + "\nAssistant:"
+				inputs = self.processor(text=prompt, images=image_list, return_tensors='pt').to(self.model.device)
+			elif 'llava-7b' in self.ckpt or 'Fuyu' in self.ckpt or 'llama3' in self.ckpt:
+				prompt = prompt.replace("<video>", "<image>" * video_token_num)
+				images = image_list
+
+		print(prompt)
+		if 'Idefics2' in self.ckpt:
+			output = self.model.generate(**inputs, max_new_tokens=10, do_sample=False)
+			response = self.processor.decode(output[0][2:], skip_special_tokens=True).split("Assistant:")[-1].strip()
+		elif 'llava-7b' in self.ckpt or 'Fuyu' in self.ckpt:
+			response, history = chat_mllava(prompt, images, self.model, self.processor,
+											repetition_penalty=1.0, length_penalty=1.0,
+											max_new_tokens=1, num_beams=1, do_sample=False,
+											pad_token_id=self.processor.tokenizer.eos_token_id)
+		elif 'llama3' in self.ckpt:
+			response, history = chat_mllava(prompt, images, self.model, self.processor,
+											max_new_tokens=1, num_beams=1, do_sample=False)
+		cprint(response, 'cyan')
+		return response
+
+class Phi(QAModelInstance):
+	def __init__(self, ckpt="microsoft/Phi-3-vision-128k-instruct", torch_device=torch.device("cuda"), model_precision=torch.float32):
+		from transformers import AutoProcessor, AutoModelForCausalLM
+		self.model = AutoModelForCausalLM.from_pretrained(ckpt,
+				device_map="cuda", trust_remote_code=True,
+				torch_dtype=model_precision,
+				_attn_implementation='flash_attention_2'
+		).to(torch_device).eval()  # use _attn_implementation='eager' to disable flash attention
+		self.processor = AutoProcessor.from_pretrained(ckpt, trust_remote_code=True)
+		self.num_video_frames = test_frame
+	def _process_prompt(self, prompt, frame_num):
+		while "<video>" in prompt:
+			n = next(frame_num)
+			prompt = prompt.replace("<video>", "<image>" * n, 1)
+		messages = []
+		image_counter = 0
+		while "<image>" in prompt:
+			prompt = prompt.replace("<image>", f"<|image_{image_counter + 1}|>", 1)
+			image_counter += 1
+
+		messages.append({"role": "user", "content": prompt})
+
+		return messages
+
+	def qa(self, image, prompt, mode, video_desc_flag=None):
+		if image is not None:
+			images_pil = []
+			frame_num = []
+			for v in image:
+				if v.endswith(".mp4"):
+					frames = opencv_extract_frames_o(v, self.num_video_frames)
+					frame_num.append(len(frames))
+					images_pil += frames
+				else:
+					images_pil.append(load_image_o(v))
+
+			messages = self._process_prompt(prompt, iter(frame_num))
+		else:
+			images_pil = None
+			messages = self._process_prompt(prompt, None)
+		print(messages)
+		input = self.processor.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+		inputs = self.processor(input, images_pil, return_tensors="pt").to("cuda:0")
+
+		generation_args = {
+			"max_new_tokens": 500,
+			"temperature": 0.0,
+			"do_sample": False,
+			"repetition_penalty": 1.0,
+			"length_penalty": 1.0
+		}
+		generate_ids = self.model.generate(**inputs, eos_token_id=self.processor.tokenizer.eos_token_id, **generation_args)
+		# remove input tokens
+		generate_ids = generate_ids[:, inputs['input_ids'].shape[1]:]
+		response = self.processor.batch_decode(generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
+		cprint(response, 'cyan')
+		return response
+
+class Cambrian(QAModelInstance):
+	def __init__(self, ckpt="nyu-visionx/cambrian-8b", torch_device=torch.device("cuda"), model_precision=torch.float32):
+		# init as https://github.com/cambrian-mllm/cambrian/blob/main/inference.py
+		from eval.models.qa_model.model_library.cambrian.model.builder import load_pretrained_model
+		from eval.models.qa_model.model_library.cambrian.mm_utils import get_model_name_from_path
+		seed = 42
+		torch.manual_seed(seed)
+		np.random.seed(seed)
+		random.seed(seed)
+		torch.backends.cudnn.deterministic = True
+		torch.backends.cudnn.benchmark = False
+
+		model_path = os.path.expanduser(ckpt)
+		model_name = get_model_name_from_path(model_path)
+		self.tokenizer, self.model, self.image_processor, self.context_len = load_pretrained_model(model_path, None, model_name)
+		self.temperature = 0
+		self._choose_conv_mode(ckpt)
+		# only support torch.float16
+
+	def _choose_conv_mode(self, ckpt):
+		if "cambrian-phi3-3b" in ckpt:
+			self.conv_mode = "phi3"
+		elif "cambrian-8b" in ckpt:
+			self.conv_mode = "llama_3"
+		elif "cambrian-34b" in ckpt:
+			self.conv_mode = "chatml_direct"
+		elif "cambrian-13b" in ckpt:
+			self.conv_mode = "vicuna_v1"
+		else:
+			raise NotImplementedError
+	def _process(self, image, question, tokenizer, image_processor, model_config):
+		from eval.models.qa_model.model_library.cambrian.constants import IMAGE_TOKEN_INDEX
+		from eval.models.qa_model.model_library.cambrian.conversation import conv_templates
+		from eval.models.qa_model.model_library.cambrian.mm_utils import tokenizer_image_token, process_images
+		conv = conv_templates[self.conv_mode].copy()
+		conv.append_message(conv.roles[0], question+'Or you can describe what you can see')
+		conv.append_message(conv.roles[1], None)
+		prompt = conv.get_prompt()
+		print(prompt)
+		image_size = [image.size]
+		image_tensor = process_images([image], image_processor, model_config)
+		input_ids = tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).cuda()
+
+		return input_ids, image_tensor, image_size, prompt
+
+	def qa(self, image, prompt):
+		image = Image.open(image).convert('RGB')
+		input_ids, image_tensor, image_sizes, prompt = self._process(image, prompt, self.tokenizer, self.image_processor,
+															self.model.config)
+		input_ids = input_ids.to(device='cuda', non_blocking=True)
+		with torch.inference_mode():
+			output_ids = self.model.generate(
+				input_ids,
+				images=image_tensor,
+				image_sizes=image_sizes,
+				do_sample=True if self.temperature > 0 else False,
+				temperature=self.temperature,
+				num_beams=1,
+				max_new_tokens=512,
+				use_cache=True)
+		outputs = self.tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
+		cprint(outputs, 'cyan')
+		return outputs
+
+class QwenVL(QAModelInstance):
+	def __init__(self, ckpt="Qwen/Qwen-VL", torch_device=torch.device("cuda"), model_precision=torch.float32):
+		from transformers import AutoModelForCausalLM, AutoTokenizer
+		self.tokenizer = AutoTokenizer.from_pretrained(ckpt, trust_remote_code=True)
+		if model_precision == torch.float32:
+			self.model = AutoModelForCausalLM.from_pretrained(
+				ckpt,
+				device_map=torch_device,
+				trust_remote_code=True,
+				fp32=True,
+				low_cpu_mem_usage=True,
+			).eval()
+		else:
+			self.model = AutoModelForCausalLM.from_pretrained(
+				ckpt,
+				device_map=torch_device,
+				trust_remote_code=True,
+				bf16=True,
+				low_cpu_mem_usage=True,
+			).eval()
+
+	def qa(self, image, prompt):
+		if isinstance(image, Image.Image):
+			# Check if the image is a PIL.Image object and save to a temporary file if so
+			with tempfile.NamedTemporaryFile(delete=True, suffix=".png") as tmp:
+				image.save(tmp.name)
+				image_path = tmp.name
+
+				# Use the temporary image path for the tokenizer
+				query = self.tokenizer.from_list_format([
+					{'image': image_path},
+					{'text': prompt},
+				])
+
+				inputs = self.tokenizer(query, return_tensors='pt').to(self.model.device)
+				out = self.model.generate(**inputs)
+
+		else:
+			# If `image` is not a PIL.Image object, use it directly
+			query = self.tokenizer.from_list_format([
+				{'image': image},
+				{'text': prompt},
+			])
+
+			inputs = self.tokenizer(query, return_tensors='pt').to(self.model.device)
+			out = self.model.generate(**inputs)
+
+		answer = self.tokenizer.decode(out[0][inputs["input_ids"].size(1):], skip_special_tokens=True).strip()
+
+		return answer
+
+
+class QwenVLChat(QAModelInstance):
+	def __init__(self, ckpt="Qwen/Qwen-VL-Chat", torch_device=torch.device("cuda"), model_precision=torch.float32):
+		from transformers import AutoModelForCausalLM, AutoTokenizer
+		from transformers.generation import GenerationConfig
+
+		self.tokenizer = AutoTokenizer.from_pretrained(ckpt, trust_remote_code=True)
+		if model_precision == torch.float32:
+			self.model = AutoModelForCausalLM.from_pretrained(
+				ckpt,
+				device_map=torch_device,
+				trust_remote_code=True,
+				fp32=True,
+				low_cpu_mem_usage=True,
+			).eval()
+		else:
+			self.model = AutoModelForCausalLM.from_pretrained(
+				ckpt,
+				device_map=torch_device,
+				trust_remote_code=True,
+				bf16=True,
+				low_cpu_mem_usage=True,
+			).eval()
+
+		# Specify hyperparameters for generation
+		self.model.generation_config = GenerationConfig.from_pretrained("Qwen/Qwen-VL-Chat", trust_remote_code=True)
+
+	def qa(self, image, prompt):
+		if isinstance(image, Image.Image):
+			# Check if the image is a PIL.Image object and save to a temporary file if so
+			with tempfile.NamedTemporaryFile(delete=True, suffix=".png") as tmp:
+				image.save(tmp.name)
+				image_path = tmp.name
+
+				# Use the temporary image path for the tokenizer
+				query = self.tokenizer.from_list_format([
+					{'image': image_path},
+					{'text': prompt},
+				])
+
+				answer, history = self.model.chat(self.tokenizer, query=query, history=None)
+		else:
+			# If `image` is not a PIL.Image object, use it directly
+			query = self.tokenizer.from_list_format([
+				{'image': image},
+				{'text': prompt},
+			])
+
+			answer, history = self.model.chat(self.tokenizer, query=query, history=None)
+		cprint(answer, 'cyan')
+		return answer
+
+
+IMAGENET_MEAN = (0.485, 0.456, 0.406)
+IMAGENET_STD = (0.229, 0.224, 0.225)
+
+from torchvision.transforms.functional import InterpolationMode
+import torchvision.transforms as T
+
+
+def build_transform(input_size):
+	MEAN, STD = IMAGENET_MEAN, IMAGENET_STD
+	transform = T.Compose([
+		T.Lambda(lambda img: img.convert('RGB') if img.mode != 'RGB' else img),
+		T.Resize((input_size, input_size), interpolation=InterpolationMode.BICUBIC),
+		T.ToTensor(),
+		T.Normalize(mean=MEAN, std=STD)
+	])
+	return transform
+
+
+def find_closest_aspect_ratio(aspect_ratio, target_ratios, width, height, image_size):
+	best_ratio_diff = float('inf')
+	best_ratio = (1, 1)
+	area = width * height
+	for ratio in target_ratios:
+		target_aspect_ratio = ratio[0] / ratio[1]
+		ratio_diff = abs(aspect_ratio - target_aspect_ratio)
+		if ratio_diff < best_ratio_diff:
+			best_ratio_diff = ratio_diff
+			best_ratio = ratio
+		elif ratio_diff == best_ratio_diff:
+			if area > 0.5 * image_size * image_size * ratio[0] * ratio[1]:
+				best_ratio = ratio
+	return best_ratio
+
+
+def dynamic_preprocess(image, min_num=1, max_num=6, image_size=448, use_thumbnail=False):
+	orig_width, orig_height = image.size
+	aspect_ratio = orig_width / orig_height
+
+	# calculate the existing image aspect ratio
+	target_ratios = set(
+		(i, j) for n in range(min_num, max_num + 1) for i in range(1, n + 1) for j in range(1, n + 1) if
+		i * j <= max_num and i * j >= min_num)
+	target_ratios = sorted(target_ratios, key=lambda x: x[0] * x[1])
+
+	# find the closest aspect ratio to the target
+	target_aspect_ratio = find_closest_aspect_ratio(
+		aspect_ratio, target_ratios, orig_width, orig_height, image_size)
+
+	# calculate the target width and height
+	target_width = image_size * target_aspect_ratio[0]
+	target_height = image_size * target_aspect_ratio[1]
+	blocks = target_aspect_ratio[0] * target_aspect_ratio[1]
+
+	# resize the image
+	resized_img = image.resize((target_width, target_height))
+	processed_images = []
+	for i in range(blocks):
+		box = (
+			(i % (target_width // image_size)) * image_size,
+			(i // (target_width // image_size)) * image_size,
+			((i % (target_width // image_size)) + 1) * image_size,
+			((i // (target_width // image_size)) + 1) * image_size
+		)
+		# split the image
+		split_img = resized_img.crop(box)
+		processed_images.append(split_img)
+	assert len(processed_images) == blocks
+	if use_thumbnail and len(processed_images) != 1:
+		thumbnail_img = image.resize((image_size, image_size))
+		processed_images.append(thumbnail_img)
+	return processed_images
+
+
+
+class InternVLChat(QAModelInstance):
+	def __init__(self, ckpt="OpenGVLab/InternVL-Chat-V1-5", torch_device=torch.device("cuda"), model_precision=torch.float32):
+		from transformers import AutoTokenizer, AutoModel
+		# Required a 80GB A100. current not support multi gpus now, internvl's bug. 
+		self.model = AutoModel.from_pretrained(
+			ckpt,
+			torch_dtype=torch.bfloat16,
+			low_cpu_mem_usage=True,
+			trust_remote_code=True,
+			device_map='auto').eval()
+		self.tokenizer = AutoTokenizer.from_pretrained(ckpt, trust_remote_code=True)
+
+	def _load_image(self, image_file, input_size=448, max_num=6):
+		image = Image.open(image_file).convert('RGB')
+		transform = build_transform(input_size=input_size)
+		images = dynamic_preprocess(image, image_size=input_size, use_thumbnail=True, max_num=max_num)
+		pixel_values = [transform(image) for image in images]
+		pixel_values = torch.stack(pixel_values)
+		return pixel_values
+
+	def qa(self, image, prompt):
+		if isinstance(image, Image.Image):
+			# Check if the image is a PIL.Image object and save to a temporary file if so
+			with tempfile.NamedTemporaryFile(delete=True, suffix=".png") as tmp:
+				image.save(tmp.name)
+				image_path = tmp.name
+				pixel_values = self._load_image(image_path, max_num=6).to(torch.bfloat16).cuda()
+		else:
+			pixel_values = self._load_image(image, max_num=6).to(torch.bfloat16).cuda()
+
+		generation_config = dict(
+			num_beams=1,
+			max_new_tokens=512,
+			do_sample=False,
+		)
+
+		response = self.model.chat(self.tokenizer, pixel_values, prompt, generation_config)
+		cprint(response, 'cyan')
+		return response
+
+
+class GPT4V(QAModelInstance):
+	model_stamp = 'gpt-4-turbo'
+
+	def __init__(self, ckpt, *args, **kwargs):
+		from openai import OpenAI
+		if isinstance(ckpt, str):
+			self.client = OpenAI(api_key=ckpt)
+		elif isinstance(ckpt, list):
+			self.client = [OpenAI(api_key=c) for c in ckpt]
+		self.completion_tokens = 0
+		self.prompt_tokens = 0
+		self.test_frame = test_frame
+		self.resolution = 512
+
+	def _video_to_base64_frames(self, video_path, num_frames=6):
+		# ref to https://cookbook.openai.com/examples/gpt_with_vision_for_video_understanding
+		video = cv2.VideoCapture(video_path)
+		base64Frames = []
+		total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+		frame_interval = max(total_frames // num_frames, 1)
+
+		for i in range(total_frames):
+			success, frame = video.read()
+			if not success:
+				break
+			if i % frame_interval == 0:
+				_, buffer = cv2.imencode(".jpg", frame)
+				base64Frames.append(base64.b64encode(buffer).decode("utf-8"))
+				if len(base64Frames) >= num_frames:
+					break
+		video.release()
+		return base64Frames
+
+	def _replace_placeholders(self, prompt: str, images: list, video_len: int):
+		img_idx = 0
+		result = []
+
+		# Split the prompt by <video> and <image> to handle each part separately
+		parts = prompt.split('<video>')
+		for i, part in enumerate(parts):
+			if i > 0:  # if this is not the first part, it means we had a <video> placeholder
+				if img_idx + video_len <= len(images):
+					# Replace <video> with video_len images
+					video_urls = [
+						{"type": "image_url",
+						"image_url": {"url": f"data:image/jpeg;base64,{images[img_idx + j]}",
+									"size": self.resolution,
+									"detail": "low"}}
+						for j in range(video_len)
+					]
+					result.extend(video_urls)
+					img_idx += video_len
+
+			image_parts = part.split('<image>')
+			for j, text in enumerate(image_parts):
+				if j > 0:  # if this is not the first sub-part, it means we had an <image> placeholder
+					if img_idx < len(images):
+						image_url = {"type": "image_url",
+									"image_url": {"url": f"data:image/jpeg;base64,{images[img_idx]}",
+												"size": self.resolution,
+												"detail": "low"}}
+						result.append(image_url)
+						img_idx += 1
+
+				if text:  # Add the text part
+					result.append({"type": "text", "text": text})
+
+		return result
+
+	def _get_response(self, client, image:list, prompt, video_len):
+		# ref to https://platform.openai.com/docs/guides/vision
+		while True:
+			try:
+				processed_prompt = self._replace_placeholders(prompt, image, video_len)
+				if self.model_stamp == 'o1-mini-2024-09-12':
+					response = client.chat.completions.create(
+						model=self.model_stamp,
+						messages=[
+							{
+								"role": "user",
+								"content": processed_prompt
+							}
+						],
+						# max_completion_tokens=300,  # 300 for text; 2000 for others Not support
+						# temperature=0., Not support
+						seed=42,
+					)
+				else:
+					response = client.chat.completions.create(
+						model=self.model_stamp,
+						messages=[
+							{
+								"role"   : "user",
+								"content": processed_prompt
+							}
+						],
+						max_tokens=2000,  # 300 for text; 2000 for others
+						temperature=0.,
+						seed=42,
+					)
+			except openai.BadRequestError as e:
+				if e.code == "sanitizer_server_error":
+					continue
+				elif e.code == "content_policy_violation":
+					response = ""
+				else:
+					raise e
+			except openai.InternalServerError as e:
+				continue
+			break
+		return response
+
+	def cost(self):
+		# https://openai.com/api/pricing/
+		if self.model_stamp == 'gpt-4-turbo':
+			return (0.03 * self.completion_tokens + 0.01 * self.prompt_tokens) / 1000  # dollar
+		elif self.model_stamp == 'gpt-4o':
+			return (0.005 * self.completion_tokens + 0.0015 * self.prompt_tokens) / 1000  # dollar
+		elif self.model_stamp == 'gpt-4o-mini':
+			return (0.00015 * self.completion_tokens + 0.000075 * self.prompt_tokens) / 1000  # dollar
+		elif self.model_stamp == 'o1-mini-2024-09-12':
+			return (0.003 * self.completion_tokens + 0.0012 * self.prompt_tokens) / 1000  # dollar
+		else:
+			raise ValueError(f'not supporft {self.model_stamp}')
+
+	def qa(self, image, prompt, mode, video_desc_flag=True):
+		print(self.cost())
+		v_frames = None
+		if image is not None:
+			# to avoid response 'As a text-based AI, I'm unable to view or analyze video content.'
+			video_desc = 'The video is split to a series of images sampled at equal intervals from the beginning to the end of it, based on the series of images, answer the question.'
+			base64_imgs = []
+			for img in image:
+				if img.endswith(".mp4"):
+					v_frames = self._video_to_base64_frames(img, num_frames=self.test_frame)  # 因为可能不足self.test_frame，所以可能要另一个来记录
+					base64_imgs+=v_frames
+					if video_desc_flag and (video_desc not in prompt):
+						prompt = video_desc + prompt
+				else:
+					with open(img, "rb") as image_file:
+						base64_imgs.append(base64.b64encode(image_file.read()).decode('utf-8'))
+		else:
+			base64_imgs = None
+		print(prompt)
+		if isinstance(self.client, list):
+			pointer = 0
+			while True:
+				client = self.client[pointer]
+				try:
+					response = self._get_response(client, base64_imgs, prompt, len(v_frames) if v_frames is not None else None)
+				except openai.RateLimitError as e:
+					if pointer < len(self.client) - 1:
+						pointer += 1
+						continue
+					else:
+						raise e
+				break
+		else:
+			response = self._get_response(self.client, base64_imgs, prompt, len(v_frames) if v_frames is not None else None)
+		if isinstance(response, str):
+			cprint(response, 'cyan')
+			return response
+		else:
+			self.completion_tokens += response.usage.completion_tokens
+			self.prompt_tokens += response.usage.prompt_tokens
+			cprint(response.choices[0].message.content, 'cyan')
+			return response.choices[0].message.content
+
+
+class GPT4O(GPT4V):
+	model_stamp = 'gpt-4o'
+class GPT4Omini(GPT4V):
+	model_stamp = 'gpt-4o-mini'
+class O1mini(GPT4V):
+	model_stamp = 'o1-mini-2024-09-12'
+
+
+def upload_image_to_oss(image_path, bucket_name='benverse', endpoint='http://oss-cn-hongkong.aliyuncs.com',
+						access_key_id='<your access key>', access_key_secret='<you access key secret>'):
+	import oss2
+	import secrets
+
+	endpoint = endpoint
+	auth = oss2.Auth(access_key_id, access_key_secret)
+	bucket = oss2.Bucket(auth, endpoint, bucket_name)
+
+	file_name = f"{secrets.token_hex(9)}.png"
+	with open(image_path, 'rb') as file:
+		bucket.put_object(file_name, file)
+
+	domain = endpoint[endpoint.find("http://") + 7:]
+	return f'https://{bucket_name}.{domain}/{file_name}', file_name
+
+
+def delete_image_from_oss(file_name, bucket_name='benverse', endpoint='http://oss-cn-hongkong.aliyuncs.com',
+						access_key_id='<your access key>', access_key_secret='<you access key secret>'):
+	import oss2
+	endpoint = endpoint
+	auth = oss2.Auth(access_key_id, access_key_secret)
+	bucket = oss2.Bucket(auth, endpoint, bucket_name)
+	bucket.delete_object(file_name)
+
+
+class QwenVLAPI(QAModelInstance):
+	model_name = None
+
+	def __init__(self, ckpt, *args, **kwargs):
+		self.ckpt = ckpt[0]
+		self.access_key_id = ckpt[1]
+		self.access_key_secret = ckpt[2]
+
+	def _get_response(self, image_path, prompt):
+		import dashscope
+		dashscope.api_key = self.ckpt
+		image_url, image_file_name = upload_image_to_oss(image_path, access_key_id=self.access_key_id, access_key_secret=self.access_key_secret)
+		messages = [{
+			'role'   : 'system',
+			'content': [{
+				'text': 'You are a helpful assistant.'
+			}]
+		}, {
+			'role'   :
+				'user',
+			'content': [
+				{
+					'image': image_url
+				},
+				{
+					'text': prompt
+				},
+			]
+		}]
+		while True:
+			try:
+				response = dashscope.MultiModalConversation.call(model=self.model_name, messages=messages)
+				if response.code == 'DataInspectionFailed':
+					response = ""
+				elif response.code == 'Throttling.RateQuota':
+					time.sleep(60)
+					continue
+				else:
+					response = response["output"]["choices"][0]["message"]["content"][0]["text"]
+			except:
+				continue
+			break
+		delete_image_from_oss(image_file_name, access_key_id=self.access_key_id, access_key_secret=self.access_key_secret)
+		return response
+
+	def qa(self, image, prompt):
+		if isinstance(image, str):
+			response = self._get_response(image, prompt)
+		else:
+			with tempfile.NamedTemporaryFile(delete=True, suffix=".png") as tmp:
+				image.save(tmp.name)
+				image_path = tmp.name
+				response = self._get_response(image_path, prompt)
+		return response
+
+
+class QwenVLPlus(QwenVLAPI):
+	model_name = 'qwen-vl-plus'
+
+
+class QwenVLMax(QwenVLAPI):
+	model_name = 'qwen-vl-max'
+
+import google.generativeai as genai
+import re
+import google
+class GeminiVisionAPI(QAModelInstance):
+	model_name = None
+
+	def __init__(self, ckpt, *args, **kwargs):
+
+		GOOGLE_API_KEY = ckpt
+		genai.configure(api_key=GOOGLE_API_KEY)
+		self.model = genai.GenerativeModel(self.model_name)
+
+	def _process_prompt(self, prompt, image_paths):
+		# Split the prompt based on <video> and <image> placeholders
+		prompt_parts = re.split(r'(<video>|<image>)', prompt)
+
+		# Initialize a list to hold the processed elements (text and loaded files)
+		processed_prompt = []
+
+		# Index to track which image or video path we're processing
+		image_path_index = 0
+
+		for part in prompt_parts:
+			if part == "<video>":
+				# Process video file
+				video_file = genai.upload_file(path=image_paths[image_path_index])
+				while video_file.state.name == "PROCESSING":
+					print('.', end='')
+					time.sleep(10)
+					video_file = genai.get_file(video_file.name)
+				if video_file.state.name == "FAILED":
+					raise ValueError(video_file.state.name)
+				processed_prompt.append(genai.get_file(name=video_file.name))
+				image_path_index += 1
+			elif part == "<image>":
+				# Process image file
+				img = Image.open(image_paths[image_path_index])
+				if img.mode != 'RGB':
+					img = img.convert('RGB')
+				processed_prompt.append(img)
+				image_path_index += 1
+			else:
+				# Just add the text part to the processed prompt
+				processed_prompt.append(part)
+
+		return processed_prompt
+
+	def _get_response(self, image_path, prompt):
+		prompt_p = self._process_prompt(prompt=prompt, image_paths=image_path)
+		while True:
+			try:
+				print(prompt_p)
+				response = self.model.generate_content(prompt_p, stream=True)
+				response.resolve()
+				response = response.text
+			except ValueError:
+				response = ""
+			except genai.types.generation_types.BlockedPromptException:
+				response = ""
+			except google.api_core.exceptions.DeadlineExceeded:
+				time.sleep(60)
+				continue
+			except google.api_core.exceptions.InternalServerError:
+				continue
+			break
+		return response
+
+	def cost(self):
+		if self.model_name == 'xx':
+			return (0.03 * self.completion_tokens + 0.01 * self.prompt_tokens) / 1000  # dollar
+
+	def qa(self, image, prompt, mode):
+		try:
+			response = self._get_response(image, prompt)
+			cprint(response, 'cyan')
+		except Exception as e:
+			print("An error occurred:", str(e))
+			time.sleep(30)
+			return None
+		return response
+
+
+class GeminiFlash(GeminiVisionAPI):
+	model_name = 'gemini-1.5-flash'
+
+class GeminiPro(GeminiVisionAPI):
+	model_name = 'gemini-1.5-pro'
+
+from anthropic import Anthropic
+class Claude(QAModelInstance):
+	# https://docs.anthropic.com/en/docs/build-with-claude/vision#example-multiple-images-with-a-system-prompt
+	model_name = None
+	def __init__(self, ckpt, *args, **kwargs):
+		# https://docs.anthropic.com/en/api/client-sdks
+		self.model = Anthropic(api_key=ckpt)
+	def _get_response(self, image, prompt):
+		img = Image.open(image)
+		if img.mode != 'RGB':
+			img = img.convert('RGB')
+		img = img.resize((128, 128))
+		buffered = BytesIO()
+		img.save(buffered, format="JPEG")
+		img_data = base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+		message_content = [
+			{
+				"role": "user",
+				"content": [
+					{
+						"type": "image",
+						"source": {
+							"type": "base64",
+							"media_type": "image/jpeg",
+							"data": img_data,
+						},
+					},
+					{
+						"type": "text",
+						# "text": "what is shown of the image?" # to ensure can be seen
+						"text": prompt.replace('<image>\n', '').replace('<video>\n', '').replace('<image>', '').replace(
+							'<video>', '')
+					}
+				],
+			}
+		]
+		print("Message content:", message_content)
+		message = self.model.messages.create(
+			model=self.model_name,
+			max_tokens=1000,
+			temperature=0,
+			messages=message_content,
+		)
+		response = message.content[0].text
+		return response
+	def qa(self, image, prompt):
+		try:
+			response = self._get_response(image=image, prompt=prompt)
+			cprint(response, 'cyan')
+		except Exception as e:
+			print("An error occurred:", str(e))
+			time.sleep(30)
+			return None
+		return response
+
+class Claude_sonnetx(Claude):
+	model_name = 'claude-3-5-sonnet-20240620'
+class Claude_sonnet(Claude):
+	model_name = 'claude-3-sonnet-20240229'
+class Claude_opus(Claude):
+	model_name = 'claude-3-opus-20240229'
+class Claude_haiku(Claude):
+	model_name = 'claude-3-haiku-20240307'
+
+
+class ReplicateAPI(QAModelInstance):
+	model_name = None
+	model_list = None
+
+	def __init__(self, ckpt, *args, **kwargs):
+		import replicate
+		self.replicate_client = replicate.Client(api_token=ckpt)
+
+	def _get_response(self, image_path, prompt):
+		image = open(image_path, "rb")
+		input = {
+			"image" : image,
+			"prompt": prompt
+		}
+		while True:
+			try:
+				output = self.replicate_client.run(
+					self.model_list[self.model_name],
+					input=input
+				)
+				response = "".join(output)
+			except:
+				time.sleep(60)
+				continue
+			break
+		return response
+
+	def qa(self, image, prompt):
+		if isinstance(image, str):
+			response = self._get_response(image, prompt)
+		else:
+			with tempfile.NamedTemporaryFile(delete=True, suffix=".png") as tmp:
+				image.save(tmp.name)
+				image_path = tmp.name
+				response = self._get_response(image_path, prompt)
+
+		return response
+
+
+class LLaVA34B(ReplicateAPI):
+	model_name = 'llava-v1.6-34b'
+	model_list = {
+		"llava-v1.6-34b": "yorickvp/llava-v1.6-34b:41ecfbfb261e6c1adf3ad896c9066ca98346996d7c4045c5bc944a79d430f174",
+	}
+
+def load_image_o(image_file):
+	image = Image.open(image_file).convert("RGB")
+	return image
+

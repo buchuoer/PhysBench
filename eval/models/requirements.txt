@@ -1,0 +1,16 @@
+transformers==4.36.2
+sentence-transformers==2.5.1
+diskcache
+openai
+torchvision==0.15.2
+accelerate
+einops
+dashscope
+oss2
+transformers_stream_generator
+sentencepiece
+flash_attn
+open_clip_torch
+overrides
+google-generativeai
+anthropic
