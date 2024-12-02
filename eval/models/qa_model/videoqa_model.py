@@ -13,11 +13,11 @@ from eval.eval_utils.task_evaluator import test_frame
 
 # you can also use vqamodel on video task by concatenating the frames of the video
 videoqa_models = {
-    "video-llava-7b"   : ("VideoLLaVA", "./eval/models/checkpoints/video-llava-7b"), 	# conda activate physbench_video
-    "chat-univi-7b"    : ("ChatUniVi", "./eval/models/checkpoints/chat-univi-7b"),		# conda activate physbench_video
-    "chat-univi-13b"   : ("ChatUniVi", "./eval/models/checkpoints/chat-univi-13b"),		# conda activate physbench_video
-    "pllava-7b"        : ("PLLaVA", "./eval/models/checkpoints/pllava-7b"),				# conda activate physbench
-    "pllava-13b"       : ("PLLaVA", "./eval/models/checkpoints/pllava-13b"),			# conda activate physbench
+    "video-llava-7b"   : ("VideoLLaVA", 	"LanguageBind/Video-LLaVA-7B"), 	# conda activate physbench_video
+    "chat-univi-7b"    : ("ChatUniVi", 		"Chat-UniVi/Chat-UniVi"),		# conda activate physbench_video
+    "chat-univi-13b"   : ("ChatUniVi", 		"Chat-UniVi/Chat-UniVi-13B"),		# conda activate physbench_video
+    "pllava-7b"        : ("PLLaVA", 		"ermu2001/pllava-7b"),				# conda activate physbench
+    "pllava-13b"       : ("PLLaVA", 		"ermu2001/pllava-13b"),			# conda activate physbench
 }
 
 def list_videoqa_models():

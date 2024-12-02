@@ -1,7 +1,7 @@
 import json
 from collections import defaultdict
 
-task_type_order = ["object", "spatial", "environment", "phenomena"]
+task_type_order = ["dynamics", "relationships", "scene", "dynamics"]
 ability_type_order = [
     "identify", "comparison", "static", "dynamic",
     "perception", "prediction", "judgment", "reasoning"

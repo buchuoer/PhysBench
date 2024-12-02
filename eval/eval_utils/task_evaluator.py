@@ -29,11 +29,12 @@ task_split = {
 	"claude-3-sonnet": "image-only",
 	"claude-3-opus": "image-only",
 	"claude-3-haiku": "image-only",
-	# 5 ------------------ image&video  要切换环境 video
+	# 5 ------------------ image&video
+		# conda activate video
 	"video-llava-7b": "image&video",
 	"chat-univi-7b": "image&video",
 	"chat-univi-13b": "image&video",
-	# 环境用image的vila
+		# conda activate image
 	"pllava-7b" : "image&video",
 	"pllava-13b" : "image&video",
 	# 18 ------------------ general
@@ -44,6 +45,7 @@ task_split = {
 	"vila-1.5-8b": "general",
 	"vila-1.5-13b": "general",
 	"Phi-3-vision-128k-instruct": "general",
+	"Phi-3.5V": "general",
 	"LLaVA-NeXT-Video-7B-DPO-hf": "general",
 	"LLaVA-NeXT-Video-7B-hf": "general",
 	"Mantis-8B-Idefics2": "general",
@@ -211,7 +213,7 @@ class PhysionBenchEvaluator():
 				answer = self.model.qa(video_path=visuals[0], question=prompt)  # video only
 			elif self.model_name in ["llava-interleave-qwen-7b-hf", "llava-interleave-qwen-7b-dpo-hf", 'vila-1.5-3b', 'vila-1.5-3b-s2',
 									'vila-1.5-8b', 'vila-1.5-13b', 'LLaVA-NeXT-Video-7B-hf', 'LLaVA-NeXT-Video-7B-DPO-hf',
-									'gpt4v', "gpt4o-mini", "gpt4o", "o1-mini", 'Phi-3-vision-128k-instruct',
+									'gpt4v', "gpt4o-mini", "gpt4o", "o1-mini", 'Phi-3-vision-128k-instruct', 'Phi-3.5V',
 									'gemini-1.5-flash', 'gemini-1.5-pro', 'Mantis-8B-Idefics2', 'Mantis-8B-Fuyu', 'Mantis-llava-7b',
 									'Mantis-8B-clip-llama3', 'Mantis-8B-siglip-llama3']:  # general
 				answer = self.model.qa(image=visuals, prompt=prompt, mode=item["mode"])

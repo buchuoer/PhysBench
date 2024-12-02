@@ -2,8 +2,9 @@
 <h1> <img src="assets/physbench.png" width="40" /> PhysBench </h1>
 </div>
 <h5 align="center">
-    <a href="https://physbench.github.io/">🌐 Homepage</a> | <a href="https://huggingface.co/datasets/USC-GVL/PhysBench">🤗 Dataset</a> | <a href="todo">📑 Paper</a> | <a href="https://github.com/USC-GVL/PhysBench/tree/main/eval">💻 Code</a> | <a href="https://eval.ai/web/challenges/challenge-page/2379/overview">🔺 EvalAI</a>
+    <a href="https://physbench.github.io/">🌐 Homepage</a> | <a href="https://huggingface.co/datasets/USC-GVL/PhysBench">🤗 Dataset</a> | <a href="todo">📑 Paper</a> | <a href="https://github.com/USC-GVL/PhysBench/tree/main/eval">💻 Code</a> | <a href="https://eval.ai/web/challenges/challenge-page/2384/overview">🔺 EvalAI</a>
 </h5>
+
 
 This repo contains evaluation code for the paper "[PhysBench: Benchmarking and Enhancing VLMs for Physical World Understanding](todo)"
 If you like our project, please give us a star ⭐ on GitHub for latest update.
@@ -14,6 +15,8 @@ If you like our project, please give us a star ⭐ on GitHub for latest update.
 ## 🔔News
 
  **🔥[2024-09-23]: Evaluation for test set is now available on [EvalAI](todo). We welcome all submissions and look forward to your participation!**
+
+We will be releasing the training split of the dataset, 3D assets and the remaining code in the near future.
 
 ## Introduction
 **Vision-Language Models (VLMs)** have emerged as promising tools for building **embodied agents**, whereas their lack of **physical world understanding** hampers their effectiveness in real-world applications. To address this challenge, we present **PhysBench**, a comprehensive benchmark designed to evaluate and enhance VLMs' understanding of the physical world across diverse and complex tasks.
