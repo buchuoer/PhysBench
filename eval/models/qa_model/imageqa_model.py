@@ -25,8 +25,18 @@ imageqa_models = {
     "llava-1.5-13b-hf"                     : ("LLaVA", 		  	 "llava-hf/llava-1.5-13b-hf"),
     "llava-v1.6-mistral-7b-hf"             : ("LLaVA", 			 "llava-hf/llava-v1.6-mistral-7b-hf"),
     "llava-v1.6-vicuna-7b-hf"              : ("LLaVA", 			 "llava-hf/llava-v1.6-vicuna-7b-hf"),
+	"deepseek1B"						   : ("DeepSeekVL", 	 "deepseek-ai/deepseek-vl-1.3b-chat"),  # pip install git+https://github.com/deepseek-ai/DeepSeek-VL.git
+	"deepseek7B"						   : ("DeepSeekVL", 	 "deepseek-ai/deepseek-vl-7b-chat"),
+	"Xinyuan-VL-2B"            			   : ("XinyuanVL", 		 "Cylingo/Xinyuan-VL-2B"),  # pip install qwen-vl-utils # pip install git+https://github.com/huggingface/transformers
+	"Aquila-VL-2B"			   			   : ("AquilaVL", 		 "BAAI/Aquila-VL-2B-llava-qwen"),  # # pip install git+https://github.com/LLaVA-VL/LLaVA-NeXT.git
     "Phi-3-vision-128k-instruct"           : ("Phi", 			 "microsoft/Phi-3-vision-128k-instruct"),
 	"Phi-3.5V"           				   : ("Phi", 			 "microsoft/Phi-3.5-vision-instruct"),
+	"mPLUG-Owl3-1B-241014"				   : ("Owl3", 			 "mPLUG/mPLUG-Owl3-1B-241014"), # pip install icecream torch==2.1.0
+	"mPLUG-Owl3-2B-241014"				   : ("Owl3", 			 "mPLUG/mPLUG-Owl3-2B-241014"),
+	"mPLUG-Owl3-7B-241101"				   : ("Owl3", 			 "mPLUG/mPLUG-Owl3-7B-241101"),
+	"MiniCPM-V2"						   : ("MiniCPMV", 		 "openbmb/MiniCPM-V-2"),
+	"MiniCPM-V2.5"						   : ("MiniCPMV", 		 "openbmb/MiniCPM-Llama3-V-2_5"),
+	"MiniCPM-V2.6"					       : ("MiniCPMV", 		 "openbmb/MiniCPM-V-2_6"),
     "Qwen-VL-Chat"                         : ("QwenVLChat", 	 "Qwen/Qwen-VL-Chat"),
     "InternVL-Chat-V1-5-quantable"         : ("InternVLChat", 	 'failspy/InternVL-Chat-V1-5-quantable'),
     "llava-interleave-qwen-7b-hf"          : ("LLaVAInterleave", "llava-hf/llava-interleave-qwen-7b-hf"),
@@ -1333,3 +1343,260 @@ def load_image_o(image_file):
 	image = Image.open(image_file).convert("RGB")
 	return image
 
+class Owl3(QAModelInstance):
+	def __init__(self, ckpt="mPLUG/mPLUG-Owl3-1B-241014", torch_device=torch.device("cuda"), model_precision=torch.float32):
+		from transformers import AutoModel, AutoTokenizer
+		self.model = AutoModel.from_pretrained(ckpt, device_map=torch_device,
+										  attn_implementation='flash_attention_2', torch_dtype=model_precision,
+										  trust_remote_code=True)
+		self.model.eval().cuda()
+		self.tokenizer = AutoTokenizer.from_pretrained(ckpt)
+		self.processor = self.model.init_processor(self.tokenizer)
+		self.torch_device = torch_device
+		self.num_video_frames = test_frame
+	def _process_prompt(self, prompt, frame_num):
+		while "<video>" in prompt:
+			n = next(frame_num)
+			prompt = prompt.replace("<video>", "<image>" * n, 1)
+		messages = []
+		image_counter = 0
+		while "<image>" in prompt:
+			prompt = prompt.replace("<image>", f"<|image|>", 1)
+			image_counter += 1
+
+		messages.append({"role": "user", "content": prompt})
+		messages.append({"role": "assistant", "content": ""})
+		return messages
+
+	def qa(self, image, prompt, mode, video_desc_flag=None):
+		if image is not None:
+			images_pil = []
+			frame_num = []
+			for v in image:
+				if isinstance(v, str) and v.endswith(".mp4"):
+					frames = opencv_extract_frames_o(v, self.num_video_frames)
+					frame_num.append(len(frames))
+					images_pil += frames
+				else:
+					images_pil.append(load_image_o(v))
+
+			messages = self._process_prompt(prompt, iter(frame_num))
+		else:
+			images_pil = None
+			messages = self._process_prompt(prompt, None)
+		print(messages)
+		inputs = self.processor(messages, images=images_pil, videos=None)
+
+		inputs.to(self.torch_device)
+		inputs.update({
+			'tokenizer': self.tokenizer,
+			'max_new_tokens': 100,
+			'decode_text': True,
+		})
+
+		response = self.model.generate(**inputs)[0]
+		cprint(response, 'cyan')
+		return response
+
+class MiniCPMV(QAModelInstance):
+	def __init__(self, ckpt="openbmb/MiniCPM-V-2", torch_device=torch.device("cuda"), model_precision=torch.float32):
+		model_precision = torch.float32  # torch.bfloat16 and torch.float16 may be wrong
+		from transformers import AutoModel, AutoTokenizer
+		self.model = AutoModel.from_pretrained(ckpt, trust_remote_code=True, torch_dtype=model_precision)
+		# For Nvidia GPUs support BF16 (like A100, H100, RTX3090)
+		self.model = self.model.to(device=torch_device, dtype=model_precision).eval()
+		self.tokenizer = AutoTokenizer.from_pretrained(ckpt, trust_remote_code=True)
+		self.ckpt = ckpt
+	def qa(self, image, prompt):
+		try:
+			if isinstance(image, str):
+				image = Image.open(image).convert('RGB')
+			prompt = prompt.replace('<image>\n', '')
+			print(prompt)
+			msgs = [{'role': 'user', 'content': prompt}]
+			if '2_6' in self.ckpt or '2_5' in self.ckpt:  # version 2.6
+				answer = self.model.chat(
+					image=image,
+					msgs=msgs,
+					context=None,
+					tokenizer=self.tokenizer,
+					sampling=False,
+					temperature=0.1,
+					max_new_token=10
+				).replace("Answer:", '').replace(" ", '', 1)
+			else:
+				# debug: https://huggingface.co/openbmb/MiniCPM-V-2/discussions/23
+				# 🔥 please follow the link to solve the bug !!!
+				# change modeling_minicpm.py in your download checkpoint
+				answer, context, _ = self.model.chat(
+					image=image,
+					msgs=msgs,
+					context=None,
+					tokenizer=self.tokenizer,
+					sampling=False,
+					temperature=0.1,
+					max_new_token=10
+				)
+			cprint(answer, 'cyan')
+			return answer
+		except:
+			return None
+
+
+class DeepSeekVL(QAModelInstance):
+	def __init__(self, ckpt="deepseek-ai/deepseek-vl-1.3b-chat", torch_device=torch.device("cuda"), model_precision=torch.float32):
+		from transformers import AutoModelForCausalLM
+		from deepseek_vl.models import VLChatProcessor, MultiModalityCausalLM
+		self.vl_chat_processor: VLChatProcessor = VLChatProcessor.from_pretrained(ckpt)
+		self.tokenizer = self.vl_chat_processor.tokenizer
+		vl_gpt: MultiModalityCausalLM = AutoModelForCausalLM.from_pretrained(ckpt, trust_remote_code=True)
+		self.vl_gpt = vl_gpt.to(torch.bfloat16).cuda().eval()
+
+	def qa(self, image, prompt):
+		from deepseek_vl.utils.io import load_pil_images
+		if isinstance(image, Image.Image):
+			# Check if the image is a PIL.Image object and save to a temporary file if so
+			with tempfile.NamedTemporaryFile(delete=True, suffix=".png") as tmp:
+				image.save(tmp.name)
+				image_path = tmp.name
+		else:
+			image_path = image
+		conversation = [
+			{
+				"role": "User",
+				"content": prompt.replace("<image>", "<image_placeholder>"),
+				"images": [image_path]
+			},
+			{
+				"role": "Assistant",
+				"content": ""
+			}
+		]
+
+		# load images and prepare for inputs
+		pil_images = load_pil_images(conversation)
+		prepare_inputs = self.vl_chat_processor(
+			conversations=conversation,
+			images=pil_images,
+			force_batchify=True
+		).to(self.vl_gpt.device)
+
+		# run image encoder to get the image embeddings
+		inputs_embeds = self.vl_gpt.prepare_inputs_embeds(**prepare_inputs)
+
+		# run the model to get the response
+		outputs = self.vl_gpt.language_model.generate(
+			inputs_embeds=inputs_embeds,
+			attention_mask=prepare_inputs.attention_mask,
+			pad_token_id=self.tokenizer.eos_token_id,
+			bos_token_id=self.tokenizer.bos_token_id,
+			eos_token_id=self.tokenizer.eos_token_id,
+			max_new_tokens=10,
+			do_sample=False,
+			use_cache=True
+		)
+		answer = self.tokenizer.decode(outputs[0].cpu().tolist(), skip_special_tokens=True)
+		cprint(answer, 'cyan')
+		return answer
+
+class XinyuanVL(QAModelInstance):
+	def __init__(self, ckpt="Cylingo/Xinyuan-VL-2B", torch_device=torch.device("cuda"), model_precision=torch.float32):
+		from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
+		# default: Load the model on the available device(s)
+		self.model = Qwen2VLForConditionalGeneration.from_pretrained(
+			ckpt, torch_dtype=model_precision, device_map=torch_device
+		).eval()
+		# default processer
+		self.processor = AutoProcessor.from_pretrained(ckpt)
+		self.torch_device = torch_device
+	@torch.inference_mode()
+	def qa(self, image, prompt):
+		from qwen_vl_utils import process_vision_info
+
+		if isinstance(image, Image.Image):
+			raw_image = image.convert('RGB').resize((1024, 1024))
+		else:
+			raw_image = Image.open(image).convert('RGB').resize((1024, 1024)) # avoid out of Mem
+
+		with tempfile.NamedTemporaryFile(delete=True, suffix=".png") as tmp:
+			raw_image.save(tmp)
+			image_path = tmp.name
+			messages = [
+				{
+					"role": "user",
+					"content": [
+						{
+							"type": "image",
+							"image": image_path,
+						},
+						{"type": "text", "text": prompt.replace('<image>\n','')},
+					],
+				}
+			]
+			mess = self.processor.apply_chat_template(
+				messages, tokenize=False, add_generation_prompt=True
+			)
+			image_inputs, video_inputs = process_vision_info(messages)
+			inputs = self.processor(
+				text=[mess],
+				images=image_inputs,
+				videos=video_inputs,
+				padding=True,
+				return_tensors="pt",
+			)
+			inputs = inputs.to(self.torch_device)
+
+			# Inference: Generation of the output
+			generated_ids = self.model.generate(**inputs, max_new_tokens=128)
+			generated_ids_trimmed = [
+				out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+			]
+			output_text = self.processor.batch_decode(
+				generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+			)[0]
+			cprint(output_text, 'cyan')
+			return output_text
+
+class AquilaVL(QAModelInstance):
+	def __init__(self, ckpt="BAAI/Aquila-VL-2B-llava-qwen", torch_device=torch.device("cuda"), model_precision=torch.float32):
+		from llava.model.builder import load_pretrained_model
+		self.tokenizer, self.model, self.image_processor, self.max_length = \
+			load_pretrained_model(ckpt, None, "llava_qwen", device_map=torch_device)
+		self.model.eval()
+		self.model_precision = model_precision
+		self.torch_device = torch_device
+	@torch.inference_mode()
+	def qa(self, image, prompt):
+		import copy
+		from llava.mm_utils import process_images, tokenizer_image_token
+		from llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN
+		from llava.conversation import conv_templates
+		if isinstance(image, str):
+			image = Image.open(image).convert('RGB')
+
+		image_tensor = process_images([image], self.image_processor, self.model.config)
+		image_tensor = [_image.to(dtype=self.model_precision, device=self.torch_device) for _image in image_tensor]
+
+		# print(DEFAULT_IMAGE_TOKEN)
+		conv = copy.deepcopy(conv_templates["qwen_1_5"])
+		conv.append_message(conv.roles[0], prompt)
+		conv.append_message(conv.roles[1], None)
+		prompt_question = conv.get_prompt()
+
+		input_ids = tokenizer_image_token(prompt_question, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(
+			0).to(self.torch_device)
+		image_sizes = [image.size]
+
+		cont = self.model.generate(
+			input_ids,
+			images=image_tensor,
+			image_sizes=image_sizes,
+			do_sample=False,
+			temperature=0,
+			max_new_tokens=4096,
+		)
+
+		text_outputs = self.tokenizer.batch_decode(cont, skip_special_tokens=True)[0]
+
+		cprint(text_outputs, 'cyan')
+		return text_outputs

@@ -22,9 +22,16 @@ task_split = {
 	"llava-1.5-13b-hf": "image-only",
 	"llava-v1.6-mistral-7b-hf": "image-only",
 	"llava-v1.6-vicuna-7b-hf": "image-only",
+	"MiniCPM-V2": "image-only",
+	"MiniCPM-V2.5": "image-only",
+	"MiniCPM-V2.6": "image-only",
 	"Qwen-VL-Chat": "image-only",
 	"InternVL-Chat-V1-5-quantable": "image-only",
-	"cambrian-8b": "image-only", 
+	"cambrian-8b": "image-only",
+	"Xinyuan-VL-2B": "image-only",
+	"Aquila-VL-2B": "image-only",
+	"deepseek1B": "image-only",
+	"deepseek7B": "image-only",
 	"claude-3-5-sonnet": "image-only",
 	"claude-3-sonnet": "image-only",
 	"claude-3-opus": "image-only",
@@ -46,6 +53,9 @@ task_split = {
 	"vila-1.5-13b": "general",
 	"Phi-3-vision-128k-instruct": "general",
 	"Phi-3.5V": "general",
+	"mPLUG-Owl3-1B-241014": "general",
+	"mPLUG-Owl3-2B-241014": "general",
+	"mPLUG-Owl3-7B-241101": "general",
 	"LLaVA-NeXT-Video-7B-DPO-hf": "general",
 	"LLaVA-NeXT-Video-7B-hf": "general",
 	"Mantis-8B-Idefics2": "general",
@@ -178,7 +188,9 @@ class PhysionBenchEvaluator():
 			visuals = [self._process_visual_path(f) for f in item["file_name"]]
 			if self.model_name in ['llava-1.5-7b-hf', 'llava-1.5-13b-hf', 'cambrian-8b',
 								'llava-v1.6-mistral-7b-hf', 'llama3-llava-next-8b-hf', 'llava-v1.6-vicuna-7b-hf',
-								"claude-3-5-sonnet", "claude-3-sonnet", "claude-3-opus", "claude-3-haiku"]:
+								"claude-3-5-sonnet", "claude-3-sonnet", "claude-3-opus", "claude-3-haiku",
+								'MiniCPM-V2', 'MiniCPM-V2.5', 'MiniCPM-V2.6',
+								'Xinyuan-VL-2B', 'Aquila-VL-2B', 'deepseek1B', 'deepseek7B']:
 				if visuals[0].endswith('.mp4'):
 					combined_image = self._concat_video(visuals[0])
 					with tempfile.NamedTemporaryFile(delete=True, suffix=".jpg") as tmp:
@@ -215,7 +227,9 @@ class PhysionBenchEvaluator():
 									'vila-1.5-8b', 'vila-1.5-13b', 'LLaVA-NeXT-Video-7B-hf', 'LLaVA-NeXT-Video-7B-DPO-hf',
 									'gpt4v', "gpt4o-mini", "gpt4o", "o1-mini", 'Phi-3-vision-128k-instruct', 'Phi-3.5V',
 									'gemini-1.5-flash', 'gemini-1.5-pro', 'Mantis-8B-Idefics2', 'Mantis-8B-Fuyu', 'Mantis-llava-7b',
-									'Mantis-8B-clip-llama3', 'Mantis-8B-siglip-llama3']:  # general
+									'Mantis-8B-clip-llama3', 'Mantis-8B-siglip-llama3', 'mPLUG-Owl3-1B-241014',
+									 'mPLUG-Owl3-2B-241014', 'mPLUG-Owl3-7B-241101', 'InternVL2-1B', 'InternVL2-2B',
+									 'InternVL2-4B', 'InternVL2-8B', 'InternVL2-26B', 'InternVL2-40B', 'InternVL2-76B']:  # general
 				answer = self.model.qa(image=visuals, prompt=prompt, mode=item["mode"])
 			else:
 				answer = self.model.qa(image=visuals, prompt=prompt)
