@@ -14,6 +14,8 @@ from termcolor import cprint
 from io import BytesIO
 from eval.eval_utils.task_evaluator import test_frame
 import cv2
+import av
+import numpy as np
 
 imageqa_models = {
     "instructblip-flan-t5-xl"              : ("InstructBlip", 	 "Salesforce/instructblip-flan-t5-xl"),
@@ -46,8 +48,27 @@ imageqa_models = {
     "vila-1.5-8b"                          : ("VILAModel", 		 "Efficient-Large-Model/Llama-3-VILA1.5-8B"),
     "vila-1.5-13b"                         : ("VILAModel",       "Efficient-Large-Model/VILA1.5-13b"),
     "cambrian-8b"                          : ("Cambrian", 		 "nyu-visionx/cambrian-8b"),
+	"paligemma2-3b"						   : ("PaliGemma2", 	 "google/paligemma2-3b-ft-docci-448"),
+	"paligemma2-10b"					   : ("PaliGemma2", 	 "google/paligemma2-10b-ft-docci-448"),
     "LLaVA-NeXT-Video-7B-DPO-hf"           : ("LLaVAVideo", 	 "llava-hf/LLaVA-NeXT-Video-7B-DPO-hf"),
     "LLaVA-NeXT-Video-7B-hf"               : ("LLaVAVideo", 	 "llava-hf/LLaVA-NeXT-Video-7B-hf"),
+	"MolmoE-1B"							   : ("MolmoE", 		 "allenai/MolmoE-1B-0924"),
+	"MolmoE-7B-O"						   : ("MolmoE", 		 "allenai/Molmo-7B-O-0924"),
+	"MolmoE-7B-D"						   : ("MolmoE", 		 "allenai/Molmo-7B-D-0924"),
+	"InternVL2-1B"						   : ("InternVLChat2",   'OpenGVLab/InternVL2-1B'),
+	"InternVL2-2B"						   : ("InternVLChat2",   'OpenGVLab/InternVL2-2B'),
+	"InternVL2-4B"						   : ("InternVLChat2",   'OpenGVLab/InternVL2-4B'),
+	"InternVL2-8B"						   : ("InternVLChat2",   'OpenGVLab/InternVL2-8B'),
+	"InternVL2-26B"						   : ("InternVLChat2",   'OpenGVLab/InternVL2-26B'),
+	"InternVL2-40B"						   : ("InternVLChat2",   'OpenGVLab/InternVL2-40B'),
+	"InternVL2-76B"					       : ("InternVLChat2",   'OpenGVLab/InternVL2-Llama3-76B'),
+	"InternVL2_5-1B"					   : ("InternVLChat2",   'OpenGVLab/InternVL2_5-1B'),
+	"InternVL2_5-2B"					   : ("InternVLChat2",   'OpenGVLab/InternVL2_5-2B'),
+	"InternVL2_5-4B"					   : ("InternVLChat2",   'OpenGVLab/InternVL2_5-4B'),
+	"InternVL2_5-8B"					   : ("InternVLChat2",   'OpenGVLab/InternVL2_5-8B'),
+	"InternVL2_5-26B"					   : ("InternVLChat2",   'OpenGVLab/InternVL2_5-26B'),
+	"InternVL2_5-38B"				       : ("InternVLChat2",   'OpenGVLab/InternVL2_5-38B'),
+	"InternVL2_5-78B"		   			   : ("InternVLChat2",   'OpenGVLab/InternVL2_5-78B'),
     "Mantis-8B-Idefics2"                   : ("Mantis", 		 "TIGER-Lab/Mantis-8B-Idefics2"),  # pip install git+https://github.com/TIGER-AI-Lab/Mantis.git
     "Mantis-llava-7b"                      : ("Mantis", 		 "TIGER-Lab/Mantis-llava-7b"),	   # pip install git+https://github.com/TIGER-AI-Lab/Mantis.git
     "Mantis-8B-siglip-llama3"              : ("Mantis", 		 "TIGER-Lab/Mantis-8B-siglip-llama3"), # pip install git+https://github.com/TIGER-AI-Lab/Mantis.git
@@ -217,6 +238,58 @@ class BLIP2(QAModelInstance):
 		answer = self.processor.decode(out[0], skip_special_tokens=True)
 		return answer
 
+class MolmoE(QAModelInstance):
+	def __init__(self, ckpt="allenai/MolmoE-1B-0924", torch_device=torch.device("cuda"), model_precision=torch.float32):
+		# 🔥 only support float32
+		# https://huggingface.co/allenai/MolmoE-1B-0924/discussions/12
+		# change torch_dtype will lead to error
+		model_precision = torch.float32
+		from transformers import AutoModelForCausalLM, AutoProcessor
+		self.processor = AutoProcessor.from_pretrained(
+			ckpt,
+			trust_remote_code=True,
+			torch_dtype='auto',
+			device_map='auto'
+		)
+		self.model = AutoModelForCausalLM.from_pretrained(
+			ckpt,
+			trust_remote_code=True,
+			torch_dtype='auto',
+			device_map='auto'
+		).to(model_precision).eval()
+		self.model_precision = model_precision
+
+	def qa(self, image, prompt):
+		try:
+			from transformers import GenerationConfig
+			if isinstance(image, str):
+				image = Image.open(image).convert('RGB')
+			print(prompt)
+			inputs = self.processor.process(
+				images=[image],
+				text= prompt.replace('<image>\n', '')
+			)
+			# move inputs to the correct device and make a batch of size 1
+			# generate output; maximum 200 new tokens; stop generation when <|endoftext|> is generated
+			inputs = {k: v.to(self.model.device).unsqueeze(0) for k, v in inputs.items()}
+
+			output = self.model.generate_from_batch(
+				inputs,
+				GenerationConfig(max_new_tokens=200, stop_strings="<|endoftext|>"),
+				tokenizer=self.processor.tokenizer
+			)
+
+			# only get generated tokens; decode them to text
+			generated_tokens = output[0, inputs['input_ids'].size(1):]
+			generated_text = self.processor.tokenizer.decode(generated_tokens, skip_special_tokens=True)
+
+			generated_text= generated_text.replace(' ', '', 1)  # remove the first ' '
+			cprint(generated_text, 'cyan')
+
+			return generated_text
+		except:
+			cprint("nonono", 'cyan')
+			return None
 
 class InstructBlip(QAModelInstance):
 	def __init__(self, ckpt="Salesforce/instructblip-flan-t5-xxl", torch_device=torch.device("cuda"), model_precision=torch.float32):
@@ -300,8 +373,33 @@ class LLaVA(QAModelInstance):
 		cprint(answer, 'cyan')
 		return answer
 
-import av
-import numpy as np
+class PaliGemma2(QAModelInstance):
+	def __init__(self, ckpt="dgoogle/paligemma2-3b-ft-docci-448", torch_device=torch.device("cuda"), model_precision=torch.float32):
+		from transformers import PaliGemmaProcessor, PaliGemmaForConditionalGeneration
+		self.model = PaliGemmaForConditionalGeneration.from_pretrained(ckpt, torch_dtype=torch.bfloat16,
+																device_map="auto").eval()
+		self.processor = PaliGemmaProcessor.from_pretrained(ckpt)
+
+	def qa(self, image, prompt):
+		from transformers.image_utils import load_image
+		if isinstance(image, Image.Image):
+			# Check if the image is a PIL.Image object and save to a temporary file if so
+			with tempfile.NamedTemporaryFile(delete=True, suffix=".png") as tmp:
+				image.save(tmp.name)
+				image_path = tmp.name
+		else:
+			image_path = image
+		image = load_image(image_path)
+		model_inputs = self.processor(text=prompt.replace('<image>\n', '') + 'your answer is: ', images=image, return_tensors="pt")\
+			.to(torch.bfloat16).to(self.model.device)
+		input_len = model_inputs["input_ids"].shape[-1]
+
+		with torch.inference_mode():
+			generation = self.model.generate(**model_inputs, max_new_tokens=5, do_sample=False)
+			generation = generation[0][input_len:]
+			decoded = self.processor.decode(generation, skip_special_tokens=True)
+			cprint(decoded, 'cyan')
+			return decoded
 
 class LLaVAVideo(QAModelInstance):
 	def __init__(self, ckpt="llava-hf/LLaVA-NeXT-Video-7B-hf", torch_device=torch.device("cuda"), model_precision=torch.float32):

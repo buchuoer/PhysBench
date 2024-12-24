@@ -13,7 +13,7 @@ To download the data from the [🤗 Dataset](https://huggingface.co/datasets/USC
 It is recommended to set `<your_path_for_dataset>` as `eval/physbench`; however, you may change this to a different path if necessary, in which case you must adjust the `--dataset_path` parameter accordingly.
 
 ```shell
-cd <your_path_for_dataset>
+cd <your_path_for_dataset>  # such as '/home/usr/dataset'
 huggingface-cli download USC-GVL/PhysBench --local-dir . --local-dir-use-symlinks False --repo-type dataset
 # Unzip the compressed files of videos and pictures
 yes | unzip image.zip -d image

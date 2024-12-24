@@ -16,6 +16,8 @@ If you like our project, please give us a star ⭐ on GitHub for latest update.
 
  **🔥[2024-09-23]: Evaluation for test set is now available on [EvalAI](todo). We welcome all submissions and look forward to your participation!**
 
+ **🔥[2024-12-23]: We have added results for 33 new VLMs to the original 39 VLMs, for a total of 72 VLMs are tested!**
+
 We will be releasing the training split of the dataset, 3D assets and the remaining code in the near future.
 
 ## Introduction

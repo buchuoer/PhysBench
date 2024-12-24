@@ -12,63 +12,86 @@ warnings.filterwarnings('ignore')
 test_frame = 8  # 1, 2, 4, 8(default), 16, 32
 
 task_split = {
-	# 12 ------------------ image-only
-	"instructblip-flan-t5-xl": "image-only",
-	"instructblip-flan-t5-xxl": "image-only",
-	"instructblip-vicuna-7b": "image-only",
-	"instructblip-vicuna-13b": "image-only",
-	"blip2-flant5xxl": "image-only",
-	"llava-1.5-7b-hf": "image-only",
-	"llava-1.5-13b-hf": "image-only",
-	"llava-v1.6-mistral-7b-hf": "image-only",
-	"llava-v1.6-vicuna-7b-hf": "image-only",
-	"MiniCPM-V2": "image-only",
-	"MiniCPM-V2.5": "image-only",
-	"MiniCPM-V2.6": "image-only",
-	"Qwen-VL-Chat": "image-only",
-	"InternVL-Chat-V1-5-quantable": "image-only",
-	"cambrian-8b": "image-only",
-	"Xinyuan-VL-2B": "image-only",
-	"Aquila-VL-2B": "image-only",
-	"deepseek1B": "image-only",
-	"deepseek7B": "image-only",
-	"claude-3-5-sonnet": "image-only",
-	"claude-3-sonnet": "image-only",
-	"claude-3-opus": "image-only",
-	"claude-3-haiku": "image-only",
-	# 5 ------------------ image&video
-		# conda activate video
-	"video-llava-7b": "image&video",
-	"chat-univi-7b": "image&video",
-	"chat-univi-13b": "image&video",
-		# conda activate image
-	"pllava-7b" : "image&video",
-	"pllava-13b" : "image&video",
-	# 18 ------------------ general
-	"llava-interleave-qwen-7b-hf": "general",
-	"llava-interleave-qwen-7b-dpo-hf": "general",
-	"vila-1.5-3b-s2" : "general",
-	"vila-1.5-3b": "general",
-	"vila-1.5-8b": "general",
-	"vila-1.5-13b": "general",
-	"Phi-3-vision-128k-instruct": "general",
-	"Phi-3.5V": "general",
-	"mPLUG-Owl3-1B-241014": "general",
-	"mPLUG-Owl3-2B-241014": "general",
-	"mPLUG-Owl3-7B-241101": "general",
-	"LLaVA-NeXT-Video-7B-DPO-hf": "general",
-	"LLaVA-NeXT-Video-7B-hf": "general",
-	"Mantis-8B-Idefics2": "general",
-	"Mantis-llava-7b": "general",
-	"Mantis-8B-siglip-llama3": "general",
-	"Mantis-8B-clip-llama3": "general",
-	"gpt4v": "general",
-	"gpt4o": "general",
-	"o1-mini": "general",
-	"gpt4o-mini": "general",
-	"gemini-1.5-flash": "general",
-	"gemini-1.5-pro": "general"
+    # ------------------ image-only
+    "instructblip-flan-t5-xl"               : "image-only",
+    "instructblip-flan-t5-xxl"              : "image-only",
+    "instructblip-vicuna-7b"                : "image-only",
+    "instructblip-vicuna-13b"               : "image-only",
+    "blip2-flant5xxl"                       : "image-only",
+    "llava-1.5-7b-hf"                      : "image-only",
+    "llava-1.5-13b-hf"                     : "image-only",
+    "llava-v1.6-mistral-7b-hf"             : "image-only",
+    "llava-v1.6-vicuna-7b-hf"              : "image-only",
+    "MiniCPM-V2"                           : "image-only",
+    "MiniCPM-V2.5"                         : "image-only",
+    "MiniCPM-V2.6"                         : "image-only",
+    "Qwen-VL-Chat"                         : "image-only",
+    "InternVL-Chat-V1-5-quantable"         : "image-only",
+    "cambrian-8b"                          : "image-only",
+    "Xinyuan-VL-2B"                        : "image-only",
+    "Aquila-VL-2B"                         : "image-only",
+    "deepseek1B"                           : "image-only",
+    "deepseek7B"                           : "image-only",
+    "paligemma2-3b"                        : "image-only",
+    "paligemma2-10b"                       : "image-only",
+    "MolmoE-1B"                            : "image-only",
+    "MolmoE-7B-O"                          : "image-only",
+    "MolmoE-7B-D"                          : "image-only",
+    "claude-3-5-sonnet"                    : "image-only",
+    "claude-3-sonnet"                      : "image-only",
+    "claude-3-opus"                        : "image-only",
+    "claude-3-haiku"                       : "image-only",
+    
+    # ------------------ image&video
+    # conda activate video
+    "video-llava-7b"                       : "image&video",
+    "chat-univi-7b"                        : "image&video",
+    "chat-univi-13b"                       : "image&video",
+    
+    # conda activate image
+    "pllava-7b"                            : "image&video",
+    "pllava-13b"                           : "image&video",
+    
+    # ------------------ general
+    "llava-interleave-qwen-7b-hf"          : "general",
+    "llava-interleave-qwen-7b-dpo-hf"      : "general",
+    "vila-1.5-3b-s2"                      : "general",
+    "vila-1.5-3b"                         : "general",
+    "vila-1.5-8b"                         : "general",
+    "vila-1.5-13b"                        : "general",
+    "Phi-3-vision-128k-instruct"          : "general",
+    "Phi-3.5V"                            : "general",
+    "mPLUG-Owl3-1B-241014"                : "general",
+    "mPLUG-Owl3-2B-241014"                : "general",
+    "mPLUG-Owl3-7B-241101"                : "general",
+    "LLaVA-NeXT-Video-7B-DPO-hf"           : "general",
+    "LLaVA-NeXT-Video-7B-hf"              : "general",
+    "Mantis-8B-Idefics2"                   : "general",
+    "Mantis-llava-7b"                     : "general",
+    "Mantis-8B-siglip-llama3"             : "general",
+    "Mantis-8B-clip-llama3"               : "general",
+    "InternVL2-1B"                        : "general",
+    "InternVL2-2B"                        : "general",
+    "InternVL2-4B"                        : "general",
+    "InternVL2-8B"                        : "general",
+    "InternVL2-26B"                       : "general",
+    "InternVL2-40B"                       : "general",
+    "InternVL2-76B"                       : "general",
+    'InternVL2_5-1B'                      : "general",
+    'InternVL2_5-2B'                      : "general",
+    'InternVL2_5-4B'                      : "general",
+    'InternVL2_5-8B'                      : "general",
+    'InternVL2_5-26B'                     : "general",
+    'InternVL2_5-38B'                     : "general",
+    'InternVL2_5-78B'                     : "general",
+    "gpt4v"                               : "general",
+    "gpt4o"                               : "general",
+    "o1-mini"                             : "general",
+    "gpt4o-mini"                          : "general",
+    "gemini-1.5-flash"                    : "general",
+    "gemini-1.5-pro"                      : "general"
 }
+
 
 class PhysionBenchEvaluator():
 	def __init__(
@@ -190,7 +213,8 @@ class PhysionBenchEvaluator():
 								'llava-v1.6-mistral-7b-hf', 'llama3-llava-next-8b-hf', 'llava-v1.6-vicuna-7b-hf',
 								"claude-3-5-sonnet", "claude-3-sonnet", "claude-3-opus", "claude-3-haiku",
 								'MiniCPM-V2', 'MiniCPM-V2.5', 'MiniCPM-V2.6',
-								'Xinyuan-VL-2B', 'Aquila-VL-2B', 'deepseek1B', 'deepseek7B']:
+								'Xinyuan-VL-2B', 'Aquila-VL-2B', 'deepseek1B', 'deepseek7B', 'paligemma2-3b',
+								'paligemma2-10b', 'MolmoE-1B', 'MolmoE-7B-O', 'MolmoE-7B-D']:
 				if visuals[0].endswith('.mp4'):
 					combined_image = self._concat_video(visuals[0])
 					with tempfile.NamedTemporaryFile(delete=True, suffix=".jpg") as tmp:
@@ -228,8 +252,10 @@ class PhysionBenchEvaluator():
 									'gpt4v', "gpt4o-mini", "gpt4o", "o1-mini", 'Phi-3-vision-128k-instruct', 'Phi-3.5V',
 									'gemini-1.5-flash', 'gemini-1.5-pro', 'Mantis-8B-Idefics2', 'Mantis-8B-Fuyu', 'Mantis-llava-7b',
 									'Mantis-8B-clip-llama3', 'Mantis-8B-siglip-llama3', 'mPLUG-Owl3-1B-241014',
-									 'mPLUG-Owl3-2B-241014', 'mPLUG-Owl3-7B-241101', 'InternVL2-1B', 'InternVL2-2B',
-									 'InternVL2-4B', 'InternVL2-8B', 'InternVL2-26B', 'InternVL2-40B', 'InternVL2-76B']:  # general
+									'mPLUG-Owl3-2B-241014', 'mPLUG-Owl3-7B-241101', 'InternVL2-1B', 'InternVL2-2B',
+									'InternVL2-4B', 'InternVL2-8B', 'InternVL2-26B', 'InternVL2-40B', 'InternVL2-76B',
+									'InternVL2_5-1B', 'InternVL2_5-2B', 'InternVL2_5-4B', 'InternVL2_5-8B',
+									'InternVL2_5-26B', 'InternVL2_5-38B', 'InternVL2_5-78B']:  # general
 				answer = self.model.qa(image=visuals, prompt=prompt, mode=item["mode"])
 			else:
 				answer = self.model.qa(image=visuals, prompt=prompt)
@@ -238,7 +264,8 @@ class PhysionBenchEvaluator():
 				"idx": item["idx"],
 				"answer": answer,
 			})
-
+			
+		os.makedirs(os.path.dirname(self.result_file), exist_ok=True)
 		with open(self.result_file, 'w', encoding='utf-8') as f:
 			json.dump(self.model_answers, f, ensure_ascii=False, indent=4)
 
