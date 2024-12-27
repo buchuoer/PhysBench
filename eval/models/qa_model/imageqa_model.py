@@ -502,9 +502,9 @@ class LLaVAInterleave(QAModelInstance):
 
 class VILAModel(QAModelInstance):
 	def __init__(self, ckpt, torch_device=torch.device("cuda"), model_precision=torch.float16, num_video_frames=8):
-		from data_inspiration.llava.mm_utils import get_model_name_from_path
-		from data_inspiration.llava.model.builder import load_pretrained_model
-		from data_inspiration.llava.utils import disable_torch_init
+		from .model_library.vila.mm_utils import get_model_name_from_path
+		from .model_library.vila.model.builder import load_pretrained_model
+		from .model_library.vila.utils import disable_torch_init
 
 		# VILA often use model_precision == torch.float16
 		disable_torch_init()
@@ -514,9 +514,9 @@ class VILAModel(QAModelInstance):
 		self.num_video_frames = test_frame
 
 	def qa(self, image, prompt, mode):
-		from data_inspiration.llava.constants import IMAGE_TOKEN_INDEX
-		from data_inspiration.llava.conversation import SeparatorStyle, conv_templates
-		from data_inspiration.llava.mm_utils import (KeywordsStoppingCriteria, process_images, tokenizer_image_token)
+		from .model_library.vila.constants import IMAGE_TOKEN_INDEX
+		from .model_library.vila.conversation import SeparatorStyle, conv_templates
+		from .model_library.vila.mm_utils import (KeywordsStoppingCriteria, process_images, tokenizer_image_token)
 
 		images_pil = []
 		for v in image:

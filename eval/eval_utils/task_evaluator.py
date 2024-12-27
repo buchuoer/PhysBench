@@ -214,7 +214,8 @@ class PhysionBenchEvaluator():
 								"claude-3-5-sonnet", "claude-3-sonnet", "claude-3-opus", "claude-3-haiku",
 								'MiniCPM-V2', 'MiniCPM-V2.5', 'MiniCPM-V2.6',
 								'Xinyuan-VL-2B', 'Aquila-VL-2B', 'deepseek1B', 'deepseek7B', 'paligemma2-3b',
-								'paligemma2-10b', 'MolmoE-1B', 'MolmoE-7B-O', 'MolmoE-7B-D']:
+								'paligemma2-10b', 'MolmoE-1B', 'MolmoE-7B-O', 'MolmoE-7B-D',
+								'allenai/Molmo-72B-0924']:
 				if visuals[0].endswith('.mp4'):
 					combined_image = self._concat_video(visuals[0])
 					with tempfile.NamedTemporaryFile(delete=True, suffix=".jpg") as tmp:
@@ -247,17 +248,40 @@ class PhysionBenchEvaluator():
 				answer = self.model.qa(video_path=visuals[0], question=prompt) # video only
 			elif self.model_name in ['video-llava-7b']:
 				answer = self.model.qa(video_path=visuals[0], question=prompt)  # video only
-			elif self.model_name in ["llava-interleave-qwen-7b-hf", "llava-interleave-qwen-7b-dpo-hf", 'vila-1.5-3b', 'vila-1.5-3b-s2',
+			elif self.model_name in ["llava-interleave-qwen-7b-hf", "llava-interleave-qwen-7b-dpo-hf", 'vila-1.5-3b',
 									'vila-1.5-8b', 'vila-1.5-13b', 'LLaVA-NeXT-Video-7B-hf', 'LLaVA-NeXT-Video-7B-DPO-hf',
 									'gpt4v', "gpt4o-mini", "gpt4o", "o1-mini", 'Phi-3-vision-128k-instruct', 'Phi-3.5V',
-									'gemini-1.5-flash', 'gemini-1.5-pro', 'Mantis-8B-Idefics2', 'Mantis-8B-Fuyu', 'Mantis-llava-7b',
+									'gemini-1.5-flash', 'gemini-1.5-pro', 'Mantis-8B-Idefics2', 'Mantis-8B-Fuyu',
 									'Mantis-8B-clip-llama3', 'Mantis-8B-siglip-llama3', 'mPLUG-Owl3-1B-241014',
 									'mPLUG-Owl3-2B-241014', 'mPLUG-Owl3-7B-241101', 'InternVL2-1B', 'InternVL2-2B',
-									'InternVL2-4B', 'InternVL2-8B', 'InternVL2-26B', 'InternVL2-40B', 'InternVL2-76B',
+									'InternVL2-4B', 'InternVL2-8B', 'Mantis-llava-7b', 'vila-1.5-3b-s2',
 									'InternVL2_5-1B', 'InternVL2_5-2B', 'InternVL2_5-4B', 'InternVL2_5-8B',
-									'InternVL2_5-26B', 'InternVL2_5-38B', 'InternVL2_5-78B']:  # general
+									 'Efficient-Large-Model/NVILA-8B', 'Efficient-Large-Model/NVILA-13B',
+									 'Efficient-Large-Model/NVILA-Lite-8B', 'Efficient-Large-Model/NVILA-Lite-13B'
+									]:  # general
 				answer = self.model.qa(image=visuals, prompt=prompt, mode=item["mode"])
+			elif self.model_name in ['OpenGVLab/InternVL2-26B', 'OpenGVLab/InternVL2-40B',
+									 'OpenGVLab/InternVL2-Llama3-76B',
+									 'OpenGVLab/InternVL2_5-26B', 'OpenGVLab/InternVL2_5-38B',
+									 'OpenGVLab/InternVL2_5-78B']:
+				gt_ind = None
+				combined_image = None
+				for index in range(len(visuals)):
+					if visuals[index].endswith('.mp4') or visuals[index].endswith(
+							'.MP4'):  # as there is only one image in PhysBench
+						combined_image = self._concat_video(visuals[0])
+						gt_ind = index
+				if combined_image is not None:
+					with tempfile.NamedTemporaryFile(delete=True, suffix=".png") as tmp:
+						combined_image.resize((224, 224))
+						print('resize')
+						combined_image.save(tmp.name)
+						visuals[gt_ind] = tmp.name
+						answer = self.model.qa(image=visuals, prompt=prompt, mode=item["mode"])
+				else:
+					answer = self.model.qa(image=visuals, prompt=prompt, mode=item["mode"])
 			else:
+				raise NotImplementedError
 				answer = self.model.qa(image=visuals, prompt=prompt)
 
 			self.model_answers.append({

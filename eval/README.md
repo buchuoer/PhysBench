@@ -35,7 +35,7 @@ conda activate physbench_video
 pip install -r requirements-video.txt
 ```
 
-### (Selective) Prepare 39 VLMs
+### (Selective) Prepare 74 VLMs
 
 Specifically, we have implemented 39 models within the `models` directory, which can be installed in one step using the following method. Alternatively, you may selectively install specific models by utilizing the `setup.sh` script.
 
@@ -83,7 +83,7 @@ Once implemented, you can add your model to the `imageqa_models` section at the 
 
 For video-based models, you may refer to `eval/models/qa_model/videoqa_model.py`.
 
-### Step 2
+##### Step 2
 
 You will need to take the following steps:
 
@@ -100,7 +100,11 @@ CUDA_VISIBLE_DEVICES=9 PYTHONPATH='./' python eval/test_benchmark.py --model_nam
 
 After running the script, a file named `[model_name].json` will be generated in the `./eval/physbench/results` directory. Please upload this file to [🔗 EvalAI](https://eval.ai/web/challenges/challenge-page/2287/overview) to automatically evaluate the results.
 
-We also provide a 📃[sample file](https://github.com/USC-GVL/PhysBench/tree/main/eval/physbench/test_case.json), which can be referenced to understand the required JSON submission format.
+We also provide a 📃[tested sample file](https://github.com/USC-GVL/PhysBench/tree/main/eval/physbench/test_case.json), which can be referenced to understand the required JSON submission format.
+
+### Some  cases
+
+In `case` floder, you can find how to use `eval_utils` get the results.
 
 
 
