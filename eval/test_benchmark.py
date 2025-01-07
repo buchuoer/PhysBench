@@ -24,14 +24,14 @@ if __name__ == "__main__":
     dataset_path = args.dataset_path
 
     if model_name in imageqa_models.keys():
-        model = ImageQAModel(model_name=model_name, precision=torch.float16)
+        qa_class = ImageQAModel(model_name=model_name, precision=torch.float16)
     elif model_name in videoqa_models.keys():
-        model = VideoQAModel(model_name=model_name)
+        qa_class = VideoQAModel(model_name=model_name)
     else:
         raise ValueError(f"Model '{model_name}' is not supported")
 
     task_evaluator = PhysionBenchEvaluator(
-        model=model.model,
+        model=qa_class.model,
         mode=task_split[model_name],
         dataset_path=dataset_path,
         model_name=model_name,
