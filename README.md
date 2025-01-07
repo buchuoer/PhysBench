@@ -32,11 +32,7 @@ Furthermore, we demonstrate that improving VLMs’ understanding of the physical
 ![Alt text](assets/data_cases_full.png)
 ## Dataset Summary
 
-The complete **PhysBench** dataset consists of 100,000 entries, organized into 19 subclasses and 10 distinct capability dimensions. For convenience, we selected a subset of 10,002 entries, which are more challenging and diverse, as the test set, and 200 entries as the validation set for parameter choosing.
-
-- **val**: 200 examples used for model development, validation, or for those with limited computing resources.
-- **test**: 10,002 examples for standard evaluation (include val). Notably, the answer labels for test will NOT be publicly released. 
-- **train**: The remaining 89,998 examples.
+The complete **PhysBench-test** dataset consists of of 10,002 entries, which are more challenging and diverse, as the test set, and 200 entries as the validation set for parameter choosing.
 
 <img src="assets/stat.png" width="900" />
 
@@ -52,7 +48,7 @@ This is a subset of the leaderboard for the PhysBench test set. For the complete
 
 You can submit your model’s predictions for the **test set** on **[EvalAI](https://eval.ai/web/challenges/challenge-page/2287/overview)**.
 
-| **#** | **Model**             | **ALL**   | **object** | **spatial** | **environment** | **phenomena** |
+| **#** | **Model**             | **ALL**   | **Property** | **Relationships** | **Scene** | **Dynamics** |
 | ----- | --------------------- | --------- | ---------- | ----------- | --------------- | ------------- |
 | -     | **Human Performance** | **95.87** | 97.10      | 95.67       | 94.91           | 95.68         |
 | 1     | **InternVL2.5-38B 🥇** | **51.94** | 58.77      | 67.51       | 39.04           | 45.00         |
