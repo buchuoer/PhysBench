@@ -75,6 +75,7 @@ imageqa_models = {
     "Mantis-8B-clip-llama3"                : ("Mantis", 		 "TIGER-Lab/Mantis-8B-clip-llama3"),   # pip install git+https://github.com/TIGER-AI-Lab/Mantis.git
     "gpt4v"                                : ("GPT4V", 			 "<Your GPT Key>"),
     "gpt4o"                                : ("GPT4O", 			 "<Your GPT Key>"),
+	"o1"								   : ("O1", 			 "<Your GPT Key>"),
     "gpt4o-mini"                           : ("GPT4Omini", 		 "<Your GPT Key>"),
     "gemini-1.5-flash"                     : ("GeminiFlash", 	 "<Your Gemini Key>"),
     "gemini-1.5-pro"                       : ("GeminiPro", 		 "<Your Gemini Key>"),
@@ -1046,7 +1047,7 @@ class GPT4V(QAModelInstance):
 		while True:
 			try:
 				processed_prompt = self._replace_placeholders(prompt, image, video_len)
-				if self.model_stamp == 'o1-mini-2024-09-12':
+				if self.model_stamp == 'o1-2024-12-17':
 					response = client.chat.completions.create(
 						model=self.model_stamp,
 						messages=[
@@ -1092,8 +1093,8 @@ class GPT4V(QAModelInstance):
 			return (0.005 * self.completion_tokens + 0.0015 * self.prompt_tokens) / 1000  # dollar
 		elif self.model_stamp == 'gpt-4o-mini':
 			return (0.00015 * self.completion_tokens + 0.000075 * self.prompt_tokens) / 1000  # dollar
-		elif self.model_stamp == 'o1-mini-2024-09-12':
-			return (0.003 * self.completion_tokens + 0.0012 * self.prompt_tokens) / 1000  # dollar
+		elif self.model_stamp == 'o1-2024-12-17':
+			return (0.015 * self.completion_tokens + 0.0075 * self.prompt_tokens) / 1000  # dollar
 		else:
 			raise ValueError(f'not supporft {self.model_stamp}')
 
@@ -1145,8 +1146,8 @@ class GPT4O(GPT4V):
 	model_stamp = 'gpt-4o'
 class GPT4Omini(GPT4V):
 	model_stamp = 'gpt-4o-mini'
-class O1mini(GPT4V):
-	model_stamp = 'o1-mini-2024-09-12'
+class O1(GPT4V):
+	model_stamp = 'o1-2024-12-17'
 
 
 def upload_image_to_oss(image_path, bucket_name='benverse', endpoint='http://oss-cn-hongkong.aliyuncs.com',

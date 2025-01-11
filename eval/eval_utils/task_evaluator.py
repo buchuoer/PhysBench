@@ -86,7 +86,7 @@ task_split = {
     'InternVL2_5-78B'                     : "general",
     "gpt4v"                               : "general",
     "gpt4o"                               : "general",
-    "o1-mini"                             : "general",
+    "o1"                             	  : "general",
     "gpt4o-mini"                          : "general",
     "gemini-1.5-flash"                    : "general",
     "gemini-1.5-pro"                      : "general"
@@ -250,7 +250,7 @@ class PhysionBenchEvaluator():
 				answer = self.model.qa(video_path=visuals[0], question=prompt)  # video only
 			elif self.model_name in ["llava-interleave-qwen-7b-hf", "llava-interleave-qwen-7b-dpo-hf", 'vila-1.5-3b',
 									'vila-1.5-8b', 'vila-1.5-13b', 'LLaVA-NeXT-Video-7B-hf', 'LLaVA-NeXT-Video-7B-DPO-hf',
-									'gpt4v', "gpt4o-mini", "gpt4o", "o1-mini", 'Phi-3-vision-128k-instruct', 'Phi-3.5V',
+									'gpt4v', "gpt4o-mini", "gpt4o", "o1", 'Phi-3-vision-128k-instruct', 'Phi-3.5V',
 									'gemini-1.5-flash', 'gemini-1.5-pro', 'Mantis-8B-Idefics2', 'Mantis-8B-Fuyu',
 									'Mantis-8B-clip-llama3', 'Mantis-8B-siglip-llama3', 'mPLUG-Owl3-1B-241014',
 									'mPLUG-Owl3-2B-241014', 'mPLUG-Owl3-7B-241101', 'InternVL2-1B', 'InternVL2-2B',
