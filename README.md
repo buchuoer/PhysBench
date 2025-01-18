@@ -16,16 +16,16 @@ If you like our project, please give us a star ⭐ on GitHub for latest update.
 
  **🔥[2024-09-23]: Evaluation for test set is now available on [EvalAI](todo). We welcome all submissions and look forward to your participation!**
 
- **🔥[2024-12-23]: We have added results for 35 new VLMs to the original 39 VLMs, for a total of 74 VLMs are tested!**
+ **🔥[2024-12-23]: We have added results for 36 new VLMs to the original 39 VLMs, for a total of 75 VLMs are tested!**
 
 We will be releasing the training split of the dataset, 3D assets and the remaining code in the near future.
 
 ## Introduction
 **Vision-Language Models (VLMs)** have emerged as promising tools for building **embodied agents**, whereas their lack of **physical world understanding** hampers their effectiveness in real-world applications. To address this challenge, we present **PhysBench**, a comprehensive benchmark designed to evaluate and enhance VLMs' understanding of the physical world across diverse and complex tasks.
 
-PhysBench comprises **100,000 entries** of interleaved video-image-text data, and the data is categorized into four major classes: **physical object properties**, **physical object relationships**, **physical scene understanding**, and **physics-driven dynamics**, covering **19 subclasses** and **10 distinct capability dimensions**.
+PhysBench is categorized into four major classes: **physical object properties**, **physical object relationships**, **physical scene understanding**, and **physics-driven dynamics**, covering **19 subclasses** and **10 distinct capability dimensions**.
 
-Our extensive experiments on 39 representative VLMs reveal significant gaps in physical world understanding, likely due to the absence of physical knowledge in their training data. To improve VLMs' physical understanding, we propose an agent-based method called **PhysAgent**, which leverages prior physical knowledge and expert model assistance to enhance physical world understanding capabilities.
+Our extensive experiments on 75 representative VLMs reveal significant gaps in physical world understanding, likely due to the absence of physical knowledge in their training data. To improve VLMs' physical understanding, we propose an agent-based method called **PhysAgent**, which leverages prior physical knowledge and expert model assistance to enhance physical world understanding capabilities.
 
 Furthermore, we demonstrate that improving VLMs’ understanding of the physical world can significantly facilitate the deployment of embodied agents in real-world scenarios, moving towards bridging the gap between human and machine intelligence in comprehending the physical world.
 
