@@ -35,7 +35,7 @@
         "idx": 7,
         "answer": "A",
         "task_type": "scene",
-        "sub_type": "gas",
+        "sub_type": "air",
         "ability_type": "perception",
         "mode": "image&video"
     },
@@ -43,7 +43,7 @@
         "idx": 8,
         "answer": "A",
         "task_type": "relationships",
-        "sub_type": "movement",
+        "sub_type": "motion",
         "ability_type": "dynamic",
         "mode": "image&video"
     },
@@ -51,7 +51,7 @@
         "idx": 13,
         "answer": "D",
         "task_type": "scene",
-        "sub_type": "camera",
+        "sub_type": "viewpoint",
         "ability_type": "perception",
         "mode": "image-only"
     },
@@ -67,7 +67,7 @@
         "idx": 20,
         "answer": "D",
         "task_type": "scene",
-        "sub_type": "camera",
+        "sub_type": "viewpoint",
         "ability_type": "perception",
         "mode": "image-only"
     },
@@ -115,7 +115,7 @@
         "idx": 40,
         "answer": "D",
         "task_type": "scene",
-        "sub_type": "camera",
+        "sub_type": "viewpoint",
         "ability_type": "perception",
         "mode": "image-only"
     },
@@ -147,7 +147,7 @@
         "idx": 103,
         "answer": "C",
         "task_type": "scene",
-        "sub_type": "gas",
+        "sub_type": "air",
         "ability_type": "judgment",
         "mode": "image&video"
     },
@@ -259,7 +259,7 @@
         "idx": 243,
         "answer": "D",
         "task_type": "dynamics",
-        "sub_type": "gas",
+        "sub_type": "air",
         "ability_type": "perception",
         "mode": "image&video"
     },
@@ -267,7 +267,7 @@
         "idx": 244,
         "answer": "C",
         "task_type": "dynamics",
-        "sub_type": "gas",
+        "sub_type": "air",
         "ability_type": "perception",
         "mode": "image&video"
     },
@@ -275,7 +275,7 @@
         "idx": 245,
         "answer": "C",
         "task_type": "dynamics",
-        "sub_type": "gas",
+        "sub_type": "air",
         "ability_type": "perception",
         "mode": "image&video"
     },
@@ -283,7 +283,7 @@
         "idx": 246,
         "answer": "B",
         "task_type": "dynamics",
-        "sub_type": "gas",
+        "sub_type": "air",
         "ability_type": "perception",
         "mode": "image&video"
     },
@@ -291,7 +291,7 @@
         "idx": 253,
         "answer": "C",
         "task_type": "dynamics",
-        "sub_type": "gas",
+        "sub_type": "air",
         "ability_type": "perception",
         "mode": "image&video"
     },
@@ -299,7 +299,7 @@
         "idx": 254,
         "answer": "C",
         "task_type": "dynamics",
-        "sub_type": "gas",
+        "sub_type": "air",
         "ability_type": "perception",
         "mode": "image&video"
     },
@@ -531,7 +531,7 @@
         "idx": 1207,
         "answer": "C",
         "task_type": "scene",
-        "sub_type": "camera",
+        "sub_type": "viewpoint",
         "ability_type": "reasoning",
         "mode": "image&video"
     },
@@ -539,7 +539,7 @@
         "idx": 1208,
         "answer": "A",
         "task_type": "scene",
-        "sub_type": "camera",
+        "sub_type": "viewpoint",
         "ability_type": "reasoning",
         "mode": "image&video"
     },
@@ -547,7 +547,7 @@
         "idx": 1209,
         "answer": "D",
         "task_type": "scene",
-        "sub_type": "camera",
+        "sub_type": "viewpoint",
         "ability_type": "reasoning",
         "mode": "image&video"
     },
@@ -555,7 +555,7 @@
         "idx": 1210,
         "answer": "C",
         "task_type": "scene",
-        "sub_type": "camera",
+        "sub_type": "viewpoint",
         "ability_type": "reasoning",
         "mode": "image&video"
     },
@@ -563,7 +563,7 @@
         "idx": 1211,
         "answer": "D",
         "task_type": "scene",
-        "sub_type": "camera",
+        "sub_type": "viewpoint",
         "ability_type": "reasoning",
         "mode": "image&video"
     },
@@ -731,7 +731,7 @@
         "idx": 1796,
         "answer": "A",
         "task_type": "scene",
-        "sub_type": "camera",
+        "sub_type": "viewpoint",
         "ability_type": "reasoning",
         "mode": "image&video"
     },
@@ -739,7 +739,7 @@
         "idx": 1874,
         "answer": "B",
         "task_type": "relationships",
-        "sub_type": "movement",
+        "sub_type": "motion",
         "ability_type": "static",
         "mode": "general"
     },
@@ -747,7 +747,7 @@
         "idx": 1875,
         "answer": "C",
         "task_type": "relationships",
-        "sub_type": "movement",
+        "sub_type": "motion",
         "ability_type": "static",
         "mode": "general"
     },
@@ -755,7 +755,7 @@
         "idx": 1947,
         "answer": "B",
         "task_type": "relationships",
-        "sub_type": "movement",
+        "sub_type": "motion",
         "ability_type": "static",
         "mode": "general"
     },
@@ -763,7 +763,7 @@
         "idx": 1948,
         "answer": "D",
         "task_type": "relationships",
-        "sub_type": "movement",
+        "sub_type": "motion",
         "ability_type": "static",
         "mode": "general"
     },
@@ -891,7 +891,7 @@
         "idx": 6242,
         "answer": "A",
         "task_type": "scene",
-        "sub_type": "camera",
+        "sub_type": "viewpoint",
         "ability_type": "reasoning",
         "mode": "image&video"
     },
@@ -915,7 +915,7 @@
         "idx": 7115,
         "answer": "C",
         "task_type": "scene",
-        "sub_type": "camera",
+        "sub_type": "viewpoint",
         "ability_type": "reasoning",
         "mode": "image&video"
     },
@@ -1211,7 +1211,7 @@
         "idx": 7755,
         "answer": "C",
         "task_type": "relationships",
-        "sub_type": "movement",
+        "sub_type": "motion",
         "ability_type": "dynamic",
         "mode": "image&video"
     },
@@ -1259,7 +1259,7 @@
         "idx": 7799,
         "answer": "C",
         "task_type": "dynamics",
-        "sub_type": "movement",
+        "sub_type": "motion",
         "ability_type": "reasoning",
         "mode": "image&video"
     },
@@ -1275,7 +1275,7 @@
         "idx": 8048,
         "answer": "C",
         "task_type": "relationships",
-        "sub_type": "movement",
+        "sub_type": "motion",
         "ability_type": "prediction",
         "mode": "image&video"
     },
@@ -1283,7 +1283,7 @@
         "idx": 8069,
         "answer": "B",
         "task_type": "dynamics",
-        "sub_type": "movement",
+        "sub_type": "motion",
         "ability_type": "perception",
         "mode": "image&video"
     },
@@ -1291,7 +1291,7 @@
         "idx": 8072,
         "answer": "C",
         "task_type": "relationships",
-        "sub_type": "movement",
+        "sub_type": "motion",
         "ability_type": "comparison",
         "mode": "image&video"
     },
@@ -1299,7 +1299,7 @@
         "idx": 8085,
         "answer": "C",
         "task_type": "relationships",
-        "sub_type": "movement",
+        "sub_type": "motion",
         "ability_type": "dynamic",
         "mode": "image&video"
     },
@@ -1395,7 +1395,7 @@
         "idx": 8615,
         "answer": "B",
         "task_type": "scene",
-        "sub_type": "camera",
+        "sub_type": "viewpoint",
         "ability_type": "perception",
         "mode": "image&video"
     },
@@ -1547,7 +1547,7 @@
         "idx": 9679,
         "answer": "C",
         "task_type": "relationships",
-        "sub_type": "movement",
+        "sub_type": "motion",
         "ability_type": "dynamic",
         "mode": "image&video"
     },
@@ -1595,7 +1595,7 @@
         "idx": 9757,
         "answer": "D",
         "task_type": "relationships",
-        "sub_type": "movement",
+        "sub_type": "motion",
         "ability_type": "dynamic",
         "mode": "image&video"
     }
