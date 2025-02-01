@@ -108,7 +108,10 @@ Our evaluation code implementation was partially inspired by [TaskMeAnything](ht
 
 **BibTeX:**
 ```bibtex
-@article{
-
+@article{chow2025physbench,
+  title={PhysBench: Benchmarking and Enhancing Vision-Language Models for Physical World Understanding},
+  author={Chow, Wei and Mao, Jiageng and Li, Boyi and Seita, Daniel and Guizilini, Vitor and Wang, Yue},
+  journal={arXiv preprint arXiv:2501.16411},
+  year={2025}
 }
 ```
