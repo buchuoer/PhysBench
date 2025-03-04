@@ -97,8 +97,6 @@ Some of the data in PhysBench has been annotated based on existing datasets, as 
 
 ## Contact
 - Wei Chow: xieqiao@zju.edu.cn
-- Jiageng Mao:  jiagengm@usc.edu
-- Yue Wang:   yue.w@usc.edu
 
 ### Acknowledgements
 

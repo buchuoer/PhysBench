@@ -37,16 +37,14 @@ pip install -r requirements-video.txt
 
 ### (Selective) Prepare 74 VLMs
 
-Specifically, we have implemented 39 models within the `models` directory, which can be installed in one step using the following method. Alternatively, you may selectively install specific models by utilizing the `setup.sh` script.
+Specifically, we have implemented 74 models within the `models` directory, which can be installed in a single step using the method outlined below.
 
-```shell
-# First, create all necessary directories by executing the following command:
-python eval/models/checkpoints/checkpath.py
-# Next, download all required models by running the following script. Note that you may choose to selectively evaluate models based on your specific requirements:
-bash python eval/models/checkpoints/setup.sh
-```
+- **Closed-Source Models**: To integrate closed-source models (such as `GPT`, `Gemini`, and `Claude`), you will need to configure your 🔑 API key in the file `eval/models/qa_model/imageqa_model.py`.
+- **Open-Source Models**: All open-source models can be automatically downloaded via Hugging Face. You can refer to `eval/models/qa_model/imageqa_model.py` to identify the relevant keys. For example, the key "Mantis-llava-7b" will invoke the "Mantis" model class, which will automatically download the model from the Hugging Face repository "TIGER-Lab/Mantis-llava-7b".
 
-To integrate closed-source models (such as `GPT`, `Gemini`, and `Claude`), you need to configure your 🔑 API key in the file `eval/models/qa_model/imageqa_model.py`.
+    ```python
+    "Mantis-llava-7b"                      : ("Mantis", 		 "TIGER-Lab/Mantis-llava-7b"),
+    ```
 
 ### Test for You Model
 
