@@ -86,6 +86,11 @@ For video-based models, you may refer to `eval/models/qa_model/videoqa_model.py`
 You will need to take the following steps:
 
 - Add your `model_name` to the `task_split` section in the file located at `eval/eval_utils/task_evaluator.py`.
+
+  `task_split` 中 `"instructblip-flan-t5-xl"        : "image-only"`,`
+
+  For each model value, there are 3 options: `image-only` means only one image is input, `image&video` means only one video is input (actually the test is image-only + image&video), and `general` means interleaved data (actually the test is image-only + image&video + general)
+
 - In the `PhysionBenchEvaluator` class, modify the `test` method to invoke the `prompt` interface of your model.
 
 After completing these changes, you can execute your model using the provided script!
@@ -96,9 +101,13 @@ After completing these changes, you can execute your model using the provided sc
 CUDA_VISIBLE_DEVICES=9 PYTHONPATH='./' python eval/test_benchmark.py --model_name gpt4o --dataset_path ./eval/physbench
 ```
 
-After running the script, a file named `[model_name].json` will be generated in the `./eval/physbench/results` directory. Please upload this file to [🔗 EvalAI](https://eval.ai/web/challenges/challenge-page/2287/overview) to automatically evaluate the results.
+After running the script, a file named `[model_name].json` will be generated in the `./eval/physbench/results` directory. Please upload this file to [🔗 EvalAI](https://eval.ai/web/challenges/challenge-page/2461/overview) to automatically evaluate the results.
 
-We also provide a 📃[tested sample file](https://github.com/USC-GVL/PhysBench/tree/main/eval/physbench/test_case.json), which can be referenced to understand the required JSON submission format.
+- [Common Case] We also provide a 📃[tested sample file](https://github.com/USC-GVL/PhysBench/tree/main/eval/physbench/test_case.json), which can be referenced to understand the required JSON submission format. Please select **Test Phase in [🔗 EvalAI](https://eval.ai/web/challenges/challenge-page/2461/overview)**
+
+- [For model only support one image input] If the model you are testing is a model like LLaVA-1.5 that only supports one image input, you need to select `image&video` instead of the `general` above. At this time, you are actually testing the results of removing interleaved items, which is the experiment in the main table in our paper. We also provide 📃[tested sample file w/o interleaved](https://github.com/USC-GVL/PhysBench/tree/main/eval/physbench/test_case.json). Please select **Dev Phase in [🔗 EvalAI](https://eval.ai/web/challenges/challenge-page/2461/overview)**
+
+    > (You need to pay special attention to that for models like LLaVA-1.5 that only support one image input, you need to stitch multiple frames of the item with mode `image&video` (only one video input) into one frame for input. We do not support the evaluation of image-only models due to the problem of the EvalAI platform
 
 ### Some  cases
 
