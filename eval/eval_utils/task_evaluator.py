@@ -239,7 +239,7 @@ class PhysionBenchEvaluator():
 					answer = self.model.qa(image=visuals[0], prompt=prompt.replace('<image>\n', '').replace("A.", "Select from the following choices.\nA."))  # image only
 			elif self.model_name in ['video-llama2-7b', 'video-llama2-13b', 'chat-univi-7b', 'chat-univi-13b',
 									'video-chatgpt-7b', 'video-chat2-7b', 'pllava-7b', 'pllava-13b']:
-				if visuals[0].endswith(".mp4"):  # vidoe需要裂成image的模型
+				if visuals[0].endswith(".mp4"):
 					prompt = "This is a series of images sampled at equal intervals from the beginning to the end of a video, based on the series of images, answer the question. Based on the video, output the best option for the question. You must only output the option." + prompt
 				else:
 					prompt = "Based on the image, output the best option for the question. You must only output the option." + prompt
