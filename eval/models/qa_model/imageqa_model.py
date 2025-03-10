@@ -1107,7 +1107,8 @@ class GPT4V(QAModelInstance):
 			base64_imgs = []
 			for img in image:
 				if img.endswith(".mp4"):
-					v_frames = self._video_to_base64_frames(img, num_frames=self.test_frame)  # 因为可能不足self.test_frame，所以可能要另一个来记录
+					# Because it may not be enough for self.test_frame, you may need another one to record
+					v_frames = self._video_to_base64_frames(img, num_frames=self.test_frame)
 					base64_imgs+=v_frames
 					if video_desc_flag and (video_desc not in prompt):
 						prompt = video_desc + prompt
