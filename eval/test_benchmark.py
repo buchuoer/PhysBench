@@ -14,6 +14,10 @@ def parse_args():
                         help="data you put USC-GVL/PhysBench")
     parser.add_argument("--split", type=str, default='val', choices=['val', 'test'],
                         help="Choose between 'val' or 'test' split")
+    parser.add_argument("--lower", type=int, default=0, 
+                        help="Lower bound for the idx of samples to evaluate")
+    parser.add_argument("--upper", type=int, default=1000,
+                        help="Upper bound for the idx of samples to evaluate")
     args = parser.parse_args()
     return args
 
@@ -37,7 +41,9 @@ if __name__ == "__main__":
         model_name=model_name,
         resume=True,
         sample_ratio=None,
-        split=args.split
+        split=args.split,
+        lower=args.lower,
+        upper=args.upper,        
     )
 
     task_evaluator.test()

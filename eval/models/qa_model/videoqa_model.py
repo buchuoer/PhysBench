@@ -13,6 +13,7 @@ from eval.eval_utils.task_evaluator import test_frame
 
 # you can also use vqamodel on video task by concatenating the frames of the video
 videoqa_models = {
+	"Video-R1"         : ("VideoR1", 		"/mnt/fck/LizhangChen/Video-R1/model/Video-R1-7B"),		# conda activate physbench_video
     "video-llava-7b"   : ("VideoLLaVA", 	"LanguageBind/Video-LLaVA-7B"), 	# conda activate physbench_video
     "chat-univi-7b"    : ("ChatUniVi", 		"Chat-UniVi/Chat-UniVi"),		# conda activate physbench_video
     "chat-univi-13b"   : ("ChatUniVi", 		"Chat-UniVi/Chat-UniVi-13B"),		# conda activate physbench_video
@@ -67,6 +68,38 @@ class VideoQAModel(QAModel):
 				answer = self.model.qa(video_path, prompt)
 			return answer
 
+class VideoR1(QAModelInstance):
+    def __init__(self, ckpt="/mnt/fck/LizhangChen/Video-R1/model/Video-R1-7B", torch_device=torch.device("cuda"), model_precision=torch.float32):
+        from transformers import AutoModelForCausalLM, AutoTokenizer, AutoProcessor
+        self.tokenizer = AutoTokenizer.from_pretrained(ckpt, trust_remote_code=True)
+        self.processor = AutoProcessor.from_pretrained(ckpt, trust_remote_code=True)
+        if model_precision == torch.float32:
+            self.model = AutoModelForCausalLM.from_pretrained(
+                ckpt,
+                device_map=torch_device,
+                trust_remote_code=True,
+                fp32=True,
+                low_cpu_mem_usage=True,
+            ).eval()
+        else:
+            self.model = AutoModelForCausalLM.from_pretrained(
+                ckpt,
+                device_map=torch_device,
+                trust_remote_code=True,
+                bf16=True,
+                low_cpu_mem_usage=True,
+            ).eval()
+
+    @torch.no_grad()
+    def qa(self, video_path, prompt):
+        # Qwen2.5-VL-7B 支持 image/video，processor 会自动判断输入类型
+        inputs = self.processor(prompt, video=video_path, return_tensors="pt")
+        for k in inputs:
+            if hasattr(inputs[k], "to"):
+                inputs[k] = inputs[k].to(self.model.device)
+        out = self.model.generate(**inputs, max_new_tokens=128)
+        answer = self.tokenizer.decode(out[0][inputs["input_ids"].size(1):], skip_special_tokens=True).strip()
+        return answer
 
 class ImageQAModel4Video(VideoQAModel):
 	def __init__(
@@ -391,3 +424,5 @@ class PLLaVA():
 										do_sample=False, max_new_tokens=256, media_type=media_type)
 		cprint(llm_response, 'cyan')
 		return llm_response
+	
+

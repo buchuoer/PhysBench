@@ -41,7 +41,6 @@ task_split = {
     "claude-3-sonnet"                      : "image-only",
     "claude-3-opus"                        : "image-only",
     "claude-3-haiku"                       : "image-only",
-    
     # ------------------ image&video
     # conda activate video
     "video-llava-7b"                       : "image&video",
@@ -53,6 +52,7 @@ task_split = {
     "pllava-13b"                           : "image&video",
     
     # ------------------ general
+	"Video-R1"                             : "general",
     "llava-interleave-qwen-7b-hf"          : "general",
     "llava-interleave-qwen-7b-dpo-hf"      : "general",
     "vila-1.5-3b-s2"                      : "general",
@@ -103,6 +103,8 @@ class PhysionBenchEvaluator():
 			sample_ratio: float = None,
 			resume: bool = True,
 			split: str= 'test'
+			lower: int = 0,
+			upper: int = 1000
 	):
 		'''
 		:param model: Model, need have a method named qa
@@ -132,7 +134,7 @@ class PhysionBenchEvaluator():
 		self.dataset_path = dataset_path
 		os.makedirs(os.path.join(self.dataset_path, result_path), exist_ok=True)
 		if self.sample_ratio is None:
-			self.result_file = os.path.join(self.dataset_path, result_path, self.model_name + '.json')
+			self.result_file = os.path.join(self.dataset_path, result_path, self.model_name + '2.json')
 		else:
 			self.result_file = os.path.join(self.dataset_path, result_path, self.model_name + f'_{self.sample_ratio}' + '.json')
 
@@ -206,7 +208,7 @@ class PhysionBenchEvaluator():
 		return combined_image
 
 	def test(self):
-		for item in tqdm(self.dataset[:5]):
+		for item in tqdm(self.dataset[2000:3000]):
 			prompt = item["question"] + self.end_prompt
 			visuals = [self._process_visual_path(f) for f in item["file_name"]]
 			if self.model_name in ['llava-1.5-7b-hf', 'llava-1.5-13b-hf', 'cambrian-8b',
@@ -248,7 +250,7 @@ class PhysionBenchEvaluator():
 				answer = self.model.qa(video_path=visuals[0], question=prompt) # video only
 			elif self.model_name in ['video-llava-7b']:
 				answer = self.model.qa(video_path=visuals[0], question=prompt)  # video only
-			elif self.model_name in ["llava-interleave-qwen-7b-hf", "llava-interleave-qwen-7b-dpo-hf", 'vila-1.5-3b',
+			elif self.model_name in ["Video-R1" ,"llava-interleave-qwen-7b-hf", "llava-interleave-qwen-7b-dpo-hf", 'vila-1.5-3b',
 									'vila-1.5-8b', 'vila-1.5-13b', 'LLaVA-NeXT-Video-7B-hf', 'LLaVA-NeXT-Video-7B-DPO-hf',
 									'gpt4v', "gpt4o-mini", "gpt4o", "o1", 'Phi-3-vision-128k-instruct', 'Phi-3.5V',
 									'gemini-1.5-flash', 'gemini-1.5-pro', 'Mantis-8B-Idefics2', 'Mantis-8B-Fuyu',

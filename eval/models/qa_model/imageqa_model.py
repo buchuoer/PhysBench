@@ -18,6 +18,7 @@ import av
 import numpy as np
 
 imageqa_models = {
+	"Video-R1"                             : ("VideoR1", 		 "/mnt/fck/LizhangChen/Video-R1/model/Video-R1-7B"),
     "instructblip-flan-t5-xl"              : ("InstructBlip", 	 "Salesforce/instructblip-flan-t5-xl"),
     "instructblip-flan-t5-xxl"             : ("InstructBlip", 	 "Salesforce/instructblip-flan-t5-xxl"),
     "instructblip-vicuna-7b"               : ("InstructBlip", 	 "Salesforce/instructblip-vicuna-7b"),
@@ -753,6 +754,60 @@ class Cambrian(QAModelInstance):
 		outputs = self.tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
 		cprint(outputs, 'cyan')
 		return outputs
+
+class VideoR1(QAModelInstance):
+    def __init__(self, ckpt="/mnt/fck/LizhangChen/Video-R1/model/Video-R1-7B", torch_device=torch.device("cuda"), model_precision=torch.float32):
+        from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor, AutoTokenizer
+        self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+            ckpt,
+            torch_dtype=model_precision,
+            low_cpu_mem_usage=True,
+            trust_remote_code=True
+        ).to(torch_device).eval()
+        self.processor = AutoProcessor.from_pretrained(ckpt, trust_remote_code=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(ckpt, trust_remote_code=True)
+        self.model_precision = model_precision
+        self.num_frames = test_frame
+
+    def qa(self, image, prompt, mode):
+        if "<|image_pad|>" in self.tokenizer.get_vocab():
+            image_token_id = self.tokenizer.get_vocab()["<|image_pad|>"]
+            print(f"image_token_id:{image_token_id}")
+        prompt = prompt.replace("<image>", "<|image_pad|>")  # replace <image> with <|image_pad|> for Video-R1
+        if mode == 'image-only':
+            image_pil = Image.open(image[0]).convert('RGB')
+            prompt = "USER:" + prompt + "\nASSISTANT:"
+            inputs = self.processor(text=prompt, images=image_pil, return_tensors='pt').to(self.model.device, self.model_precision)
+        elif mode == 'image&video':
+            video_frames = opencv_extract_frames_o(image[0], frames=self.num_frames)
+            prompt = "USER:" + prompt.replace("<video>", "<|image_pad|>" * len(video_frames)) + "\nASSISTANT:"
+            inputs = self.processor(text=prompt, images=video_frames, return_tensors='pt').to(self.model.device, self.model_precision)
+            print(f"len(video_frames): {len(video_frames)}")
+        else:  # general
+            image_list = []
+            video_token_num = 0
+            for it in image:
+                if it.endswith(".mp4"):
+                    ori = len(image_list)
+                    image_list += opencv_extract_frames_o(it, frames=self.num_frames)
+                    video_token_num = len(image_list) - ori
+                else:
+                    image_list.append(Image.open(it).convert('RGB'))
+            prompt = "USER:" + prompt.replace("<video>", "<|image_pad|>" * video_token_num) + "\nASSISTANT:"
+            # assert isinstance(prompt, str), f"prompt类型错误: {type(prompt)}"
+            # assert prompt.count("<image>") == len(image_list), f"<image>数量({prompt.count('<image>')})与图片数量({len(image_list)})不一致"
+            # assert all(isinstance(img, Image.Image) for img in image_list), "image_list中有非PIL.Image对象"
+            inputs = self.processor(text=prompt, images=image_list, return_tensors='pt').to(self.model.device, self.model_precision)
+            # print(f"len(image_list): {len(image_list)}")
+            # print(f"<image> count: {prompt.count('<image>')}")
+
+        print(prompt)
+        # n_image_tokens = (inputs == 151655).sum().item()
+        # print(f"Number of <image> tokens: {n_image_tokens}")
+        output = self.model.generate(**inputs, max_new_tokens=10, do_sample=False)
+        response = self.processor.decode(output[0][2:], skip_special_tokens=True).split("ASSISTANT:")[-1].strip()[0]
+        cprint(response, 'cyan')
+        return response
 
 class QwenVL(QAModelInstance):
 	def __init__(self, ckpt="Qwen/Qwen-VL", torch_device=torch.device("cuda"), model_precision=torch.float32):
