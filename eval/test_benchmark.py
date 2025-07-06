@@ -16,7 +16,7 @@ def parse_args():
                         help="Choose between 'val' or 'test' split")
     parser.add_argument("--lower", type=int, default=0, 
                         help="Lower bound for the idx of samples to evaluate")
-    parser.add_argument("--upper", type=int, default=1000,
+    parser.add_argument("--upper", type=int, default=10002,
                         help="Upper bound for the idx of samples to evaluate")
     args = parser.parse_args()
     return args

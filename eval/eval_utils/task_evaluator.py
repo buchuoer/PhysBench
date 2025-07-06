@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw, ImageFont
 from termcolor import cprint
 import numpy as np
 warnings.filterwarnings('ignore')
-
+answer_with_cot = False  # if True, the model will answer with chain of thought, otherwise, it will answer directly
 test_frame = 8  # 1, 2, 4, 8(default), 16, 32
 
 task_split = {
@@ -52,6 +52,7 @@ task_split = {
     "pllava-13b"                           : "image&video",
     
     # ------------------ general
+	"VideoHallu"                        : "general",  
 	"Video-R1"                             : "general",
     "llava-interleave-qwen-7b-hf"          : "general",
     "llava-interleave-qwen-7b-dpo-hf"      : "general",
@@ -102,9 +103,9 @@ class PhysionBenchEvaluator():
 			model_name:str,
 			sample_ratio: float = None,
 			resume: bool = True,
-			split: str= 'test'
+			split: str= 'test',
 			lower: int = 0,
-			upper: int = 1000
+			upper: int = 10002
 	):
 		'''
 		:param model: Model, need have a method named qa
@@ -119,10 +120,13 @@ class PhysionBenchEvaluator():
 		self.seed = 2024 # fix
 		self.resume = resume
 
+		self.lower = lower
+		self.upper = upper
+
 		assert mode in ["image-only", "image&video", "general"], f"not supporting {mode}"
 
-		# ref to llava 1.5
-		self.end_prompt = "\nAnswer with the option's letter from the given choices directly. You can only answer one letter from A, B, C, or D."
+		# 强化的提示词，明确要求只输出单个字母
+		self.end_prompt = "\n\nIMPORTANT: Answer with ONLY the single option letter (A, B, C, or D). Do not provide any explanation, reasoning, or additional text. Just output one letter."
 		# ref to TaskMeAnything
 		self.video2image_prompt = 'This is a series of images sampled at equal intervals from the beginning to the end of a video, based on the series of images, output the best option for the question.\n'
 
@@ -130,11 +134,11 @@ class PhysionBenchEvaluator():
 		self.split = split
 		self._load_dataset(dataset_path)
 
-	def _load_dataset(self, dataset_path, result_path='results'):
+	def _load_dataset(self, dataset_path, result_path='results_qwen'):
 		self.dataset_path = dataset_path
 		os.makedirs(os.path.join(self.dataset_path, result_path), exist_ok=True)
 		if self.sample_ratio is None:
-			self.result_file = os.path.join(self.dataset_path, result_path, self.model_name + '2.json')
+			self.result_file = os.path.join(self.dataset_path, result_path, self.model_name+ "_" + str(self.lower) + "_" + str (self.upper) + '.json')
 		else:
 			self.result_file = os.path.join(self.dataset_path, result_path, self.model_name + f'_{self.sample_ratio}' + '.json')
 
@@ -162,6 +166,7 @@ class PhysionBenchEvaluator():
 			self.dataset = [item for item in dataset if item['mode'] == "image&video"]
 		else:
 			self.dataset = dataset # all support
+		self.dataset = [item for item in self.dataset if item['idx'] >= self.lower and item['idx'] < self.upper]
 
 		self.model_answers = []  # for save the answer
 
@@ -208,8 +213,14 @@ class PhysionBenchEvaluator():
 		return combined_image
 
 	def test(self):
-		for item in tqdm(self.dataset[2000:3000]):
-			prompt = item["question"] + self.end_prompt
+		for idx, item in enumerate(tqdm(self.dataset, desc="Processing questions")):
+			print(f"\n{'='*50}")
+			print(f"Question {idx + self.lower + 1}: {item['question']}")
+			print(f"Options: {[opt for opt in ['A', 'B', 'C', 'D'] if opt in item['question']]}")
+			print(f"Mode: {item['mode']}")
+			print(f"{'='*50}")
+			
+			prompt = item["question"] + self.end_prompt #directly answer the question within the given choices
 			visuals = [self._process_visual_path(f) for f in item["file_name"]]
 			if self.model_name in ['llava-1.5-7b-hf', 'llava-1.5-13b-hf', 'cambrian-8b',
 								'llava-v1.6-mistral-7b-hf', 'llama3-llava-next-8b-hf', 'llava-v1.6-vicuna-7b-hf',
@@ -250,7 +261,21 @@ class PhysionBenchEvaluator():
 				answer = self.model.qa(video_path=visuals[0], question=prompt) # video only
 			elif self.model_name in ['video-llava-7b']:
 				answer = self.model.qa(video_path=visuals[0], question=prompt)  # video only
-			elif self.model_name in ["Video-R1" ,"llava-interleave-qwen-7b-hf", "llava-interleave-qwen-7b-dpo-hf", 'vila-1.5-3b',
+			elif self.model_name in ["Video-R1", "VideoHallu"]:
+				if  not answer_with_cot :
+					#prompt ="Question:"  +item["question"] + 'Please provide only the single option letter (e.g., A, B, C, D, etc.) within the <answer> </answer> tags.'
+					answer = self.model.qa(image=visuals, prompt=prompt, mode=item["mode"])
+				else :
+					QUESTION_TEMPLATE = (
+                	"{Question}\n"
+        			"Please think about this question as if you were a human pondering deeply. "
+        			"Engage in an internal dialogue using expressions such as 'let me think', 'wait', 'Hmm', 'oh, I see', 'let's break it down', etc, or other natural language thought expressions "
+        			"It's encouraged to include self-reflection or verification in the reasoning process. "
+        			"Provide your detailed reasoning between the <think> </think> tags, and then give your final answer between the <answer> </answer> tags.\n"
+					)    		
+					prompt = QUESTION_TEMPLATE.format(Question=item["question"]) +"Please provide only the single option letter (e.g., A, B, C, D, etc.) within the <answer> </answer> tags."
+					answer = self.model.qa(image=visuals, prompt=prompt, mode=item["mode"])
+			elif self.model_name in ["llava-interleave-qwen-7b-hf", "llava-interleave-qwen-7b-dpo-hf", 'vila-1.5-3b',
 									'vila-1.5-8b', 'vila-1.5-13b', 'LLaVA-NeXT-Video-7B-hf', 'LLaVA-NeXT-Video-7B-DPO-hf',
 									'gpt4v', "gpt4o-mini", "gpt4o", "o1", 'Phi-3-vision-128k-instruct', 'Phi-3.5V',
 									'gemini-1.5-flash', 'gemini-1.5-pro', 'Mantis-8B-Idefics2', 'Mantis-8B-Fuyu',
@@ -286,11 +311,29 @@ class PhysionBenchEvaluator():
 				raise NotImplementedError
 				answer = self.model.qa(image=visuals, prompt=prompt)
 
+			# 立即打印结果
+			print(f"\n🤖 Model Answer: {answer}")
+			print(f"Question ID: {item['idx']}")
+			print("-" * 50)
+
 			self.model_answers.append({
 				"idx": item["idx"],
 				"answer": answer,
 			})
 			
+			# 每处理一个问题就立即保存，避免丢失结果
+			try:
+				os.makedirs(os.path.dirname(self.result_file), exist_ok=True)
+				with open(self.result_file, 'w', encoding='utf-8') as f:
+					json.dump(self.model_answers, f, ensure_ascii=False, indent=4)
+				print(f"✅ Progress saved: {len(self.model_answers)} questions completed")
+			except Exception as e:
+				print(f"⚠️ Failed to save progress: {e}")
+			
+		print(f"\n🎉 All questions completed! Total: {len(self.model_answers)}")
+		print(f"Results saved to: {self.result_file}")
+		
+		# 最终保存
 		os.makedirs(os.path.dirname(self.result_file), exist_ok=True)
 		with open(self.result_file, 'w', encoding='utf-8') as f:
 			json.dump(self.model_answers, f, ensure_ascii=False, indent=4)

@@ -2,6 +2,7 @@
 import base64
 import tempfile
 import time
+import re
 from typing import Callable, Union
 import openai
 import torch
@@ -16,9 +17,13 @@ from eval.eval_utils.task_evaluator import test_frame
 import cv2
 import av
 import numpy as np
-
+#videohallu_ckpt = "/mnt/world_foundational_model/fck/LizhangChen/VideoHallu/src/r1-v/log/Qwen2.5-VL-7B-Real-Videos-synthetic-rewardBert" 
+videohallu_ckpt = "/mnt/world_foundational_model/fck/LizhangChen/models/Qwen2.5-VL-7B"
+#videohallu_ckpt = "/mnt/world_foundational_model/fck/LizhangChen/VideoHallu/src/r1-v/log/Qwen2.5-VL-7B-Real-Videos-physbench-rewardBert"
+videor1_ckpt = "/mnt/world_foundational_model/fck/LizhangChen/Video-R1/model/Video-R1-7B"
 imageqa_models = {
-	"Video-R1"                             : ("VideoR1", 		 "/mnt/fck/LizhangChen/Video-R1/model/Video-R1-7B"),
+	"VideoHallu"                        : ("VideoHallu", 	 videohallu_ckpt),  # pip install git+
+	"Video-R1"                             : ("VideoR1", 		 videor1_ckpt),
     "instructblip-flan-t5-xl"              : ("InstructBlip", 	 "Salesforce/instructblip-flan-t5-xl"),
     "instructblip-flan-t5-xxl"             : ("InstructBlip", 	 "Salesforce/instructblip-flan-t5-xxl"),
     "instructblip-vicuna-7b"               : ("InstructBlip", 	 "Salesforce/instructblip-vicuna-7b"),
@@ -497,9 +502,9 @@ class LLaVAInterleave(QAModelInstance):
 			inputs = self.processor(prompt, image_list, return_tensors='pt').to(self.model.device, self.model_precision)
 		print(prompt)
 		output = self.model.generate(**inputs, max_new_tokens=10, do_sample=False)
-		response = self.processor.decode(output[0][2:], skip_special_tokens=True).split("ASSISTANT:")[-1].strip()
+		response = self.processor.decode(output[0][2:], skip_special_tokens=True).split("ASSISTANT:")[-1].strip()[0]
 		cprint(response, 'cyan')
-		return response
+		return answer
 
 
 class VILAModel(QAModelInstance):
@@ -756,7 +761,7 @@ class Cambrian(QAModelInstance):
 		return outputs
 
 class VideoR1(QAModelInstance):
-    def __init__(self, ckpt="/mnt/fck/LizhangChen/Video-R1/model/Video-R1-7B", torch_device=torch.device("cuda"), model_precision=torch.float32):
+    def __init__(self, ckpt=videor1_ckpt, torch_device=torch.device("cuda"), model_precision=torch.float32):
         from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor, AutoTokenizer
         self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
             ckpt,
@@ -770,9 +775,9 @@ class VideoR1(QAModelInstance):
         self.num_frames = test_frame
 
     def qa(self, image, prompt, mode):
-        if "<|image_pad|>" in self.tokenizer.get_vocab():
-            image_token_id = self.tokenizer.get_vocab()["<|image_pad|>"]
-            print(f"image_token_id:{image_token_id}")
+        # if "<|image_pad|>" in self.tokenizer.get_vocab():
+        #     image_token_id = self.tokenizer.get_vocab()["<|image_pad|>"]
+        #     print(f"image_token_id:{image_token_id}")
         prompt = prompt.replace("<image>", "<|image_pad|>")  # replace <image> with <|image_pad|> for Video-R1
         if mode == 'image-only':
             image_pil = Image.open(image[0]).convert('RGB')
@@ -782,7 +787,7 @@ class VideoR1(QAModelInstance):
             video_frames = opencv_extract_frames_o(image[0], frames=self.num_frames)
             prompt = "USER:" + prompt.replace("<video>", "<|image_pad|>" * len(video_frames)) + "\nASSISTANT:"
             inputs = self.processor(text=prompt, images=video_frames, return_tensors='pt').to(self.model.device, self.model_precision)
-            print(f"len(video_frames): {len(video_frames)}")
+            #print(f"len(video_frames): {len(video_frames)}")
         else:  # general
             image_list = []
             video_token_num = 0
@@ -800,14 +805,130 @@ class VideoR1(QAModelInstance):
             inputs = self.processor(text=prompt, images=image_list, return_tensors='pt').to(self.model.device, self.model_precision)
             # print(f"len(image_list): {len(image_list)}")
             # print(f"<image> count: {prompt.count('<image>')}")
+        def extract_think_and_answer(response):
+    		# 提取 <think>...</think>
+            think_match = re.search(r"<think>(.*?)</think>", response, re.DOTALL | re.IGNORECASE)
+            think = think_match.group(1).strip() if think_match else ""
 
+    		# 提取 <answer>...</answer>
+            answer_match = re.search(r"<answer>(.*?)</answer>", response, re.DOTALL | re.IGNORECASE)
+            answer = answer_match.group(1).strip() if answer_match else ""
+			
+            return think, answer
         print(prompt)
-        # n_image_tokens = (inputs == 151655).sum().item()
-        # print(f"Number of <image> tokens: {n_image_tokens}")
-        output = self.model.generate(**inputs, max_new_tokens=10, do_sample=False)
-        response = self.processor.decode(output[0][2:], skip_special_tokens=True).split("ASSISTANT:")[-1].strip()[0]
+        output = self.model.generate(**inputs, max_new_tokens=768, do_sample=False)
+        response = self.processor.decode(output[0][2:], skip_special_tokens=True).split("ASSISTANT:")[-1].strip()
         cprint(response, 'cyan')
-        return response
+        _ , answer = extract_think_and_answer(response)
+        return answer
+
+class VideoHallu(QAModelInstance):
+    def __init__(self, ckpt=videohallu_ckpt, torch_device=torch.device("cuda"), model_precision=torch.float32):
+        from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor, AutoTokenizer
+        self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+            ckpt,
+            torch_dtype=model_precision,
+            low_cpu_mem_usage=True,
+            trust_remote_code=True
+        ).to(torch_device).eval()
+        self.processor = AutoProcessor.from_pretrained(ckpt, trust_remote_code=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(ckpt, trust_remote_code=True)
+        self.model_precision = model_precision
+        self.num_frames = test_frame
+
+    def qa(self, image, prompt, mode):
+        # if "<|image_pad|>" in self.tokenizer.get_vocab():
+        #     image_token_id = self.tokenizer.get_vocab()["<|image_pad|>"]
+        #     print(f"image_token_id:{image_token_id}")
+        prompt = prompt.replace("<image>", "<|image_pad|>")  # replace <image> with <|image_pad|> for Video-R1
+        if mode == 'image-only':
+            image_pil = Image.open(image[0]).convert('RGB')
+            prompt = "USER:" + prompt + "\nASSISTANT:"
+            inputs = self.processor(text=prompt, images=image_pil, return_tensors='pt').to(self.model.device, self.model_precision)
+        elif mode == 'image&video':
+            video_frames = opencv_extract_frames_o(image[0], frames=self.num_frames)
+            prompt = "USER:" + prompt.replace("<video>", "<|image_pad|>" * len(video_frames)) + "\nASSISTANT:"
+            inputs = self.processor(text=prompt, images=video_frames, return_tensors='pt').to(self.model.device, self.model_precision)
+            #print(f"len(video_frames): {len(video_frames)}")
+        else:  # general
+            image_list = []
+            video_token_num = 0
+            for it in image:
+                if it.endswith(".mp4"):
+                    ori = len(image_list)
+                    image_list += opencv_extract_frames_o(it, frames=self.num_frames)
+                    video_token_num = len(image_list) - ori
+                else:
+                    image_list.append(Image.open(it).convert('RGB'))
+            prompt = "USER:" + prompt.replace("<video>", "<|image_pad|>" * video_token_num) + "\nASSISTANT:"
+            # assert isinstance(prompt, str), f"prompt类型错误: {type(prompt)}"
+            # assert prompt.count("<image>") == len(image_list), f"<image>数量({prompt.count('<image>')})与图片数量({len(image_list)})不一致"
+            # assert all(isinstance(img, Image.Image) for img in image_list), "image_list中有非PIL.Image对象"
+            inputs = self.processor(text=prompt, images=image_list, return_tensors='pt').to(self.model.device, self.model_precision)
+            # print(f"len(image_list): {len(image_list)}")
+            # print(f"<image> count: {prompt.count('<image>')}")
+        def extract_think_and_answer(response):
+    		# 提取 <think>...</think>
+            think_match = re.search(r"<think>(.*?)</think>", response, re.DOTALL | re.IGNORECASE)
+            think = think_match.group(1).strip() if think_match else ""
+
+    		# 提取 <answer>...</answer>
+            answer_match = re.search(r"<answer>(.*?)</answer>", response, re.DOTALL | re.IGNORECASE)
+            answer = answer_match.group(1).strip() if answer_match else response.strip()
+            
+            # 如果没有找到answer标签，尝试提取选择题答案 (A, B, C, D)
+            if not answer_match:
+                choice_match = re.search(r'\b([ABCD])\b', response)
+                if choice_match:
+                    answer = choice_match.group(1)
+            
+            return think, answer
+        print(prompt)
+        # 生成参数优化：限制输出长度，确保只生成简短答案
+        with torch.no_grad():
+            output = self.model.generate(
+                **inputs, 
+                max_new_tokens=5,  # 大幅减少最大生成长度，只够生成一个选项字母和少量词汇
+                do_sample=False,
+                pad_token_id=self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id,
+                eos_token_id=self.tokenizer.eos_token_id,
+                use_cache=False
+            )
+        
+        # 只解码新生成的token，避免重复输出
+        input_length = inputs['input_ids'].shape[1]
+        generated_tokens = output[0][input_length:]
+        response = self.processor.decode(generated_tokens, skip_special_tokens=True).strip()
+        
+        # 立即打印生成的响应和提取的答案
+        print(f"Raw response: {response}")
+        _ , answer = extract_think_and_answer(response)
+        
+        # 进一步清理答案，确保只返回单个选择字母
+        if answer:
+            # 提取第一个出现的A、B、C、D字母
+            clean_match = re.search(r'\b([ABCD])\b', answer)
+            if clean_match:
+                answer = clean_match.group(1)
+                print(f"Final answer: {answer}")
+            else:
+                # 如果没有找到标准选择字母，尝试从原始响应中提取
+                clean_match = re.search(r'\b([ABCD])\b', response)
+                if clean_match:
+                    answer = clean_match.group(1)
+                    print(f"Final answer (from raw): {answer}")
+                else:
+                    # 保留原答案但去除多余空白
+                    answer = answer.strip()[:1] if answer.strip() else "A"  # 默认返回A
+                    print(f"Final answer (fallback): {answer}")
+        else:
+            # 如果提取失败，直接从响应中找选项
+            clean_match = re.search(r'\b([ABCD])\b', response)
+            answer = clean_match.group(1) if clean_match else "A"
+            print(f"Final answer (direct): {answer}")
+        
+        cprint(f"Answer: {answer}", 'green', attrs=['bold'])
+        return answer
 
 class QwenVL(QAModelInstance):
 	def __init__(self, ckpt="Qwen/Qwen-VL", torch_device=torch.device("cuda"), model_precision=torch.float32):
